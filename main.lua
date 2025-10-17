@@ -481,5 +481,88 @@ Players.LocalPlayer.OnTeleport:Connect(function(teleportState)
     end
 end)
 
+function SafeSetFlag(flag, value)
+    pcall(function()
+        if getfflag and setfflag and getfflag(flag) then
+            setfflag(flag, value)
+        end
+    end)
+end
+
+function LowerPing()
+    SafeSetFlag("ConnectionMTUSize","900")
+    SafeSetFlag("RakNetResendBufferArrayLength","128")
+    SafeSetFlag("OptimizeNetwork","True")
+    SafeSetFlag("OptimizeNetworkRouting","True")
+    SafeSetFlag("OptimizeNetworkTransport","True")
+    SafeSetFlag("OptimizeServerTickRate","True")
+    SafeSetFlag("ServerPhysicsUpdateRate","60")
+    SafeSetFlag("ServerTickRate","60")
+    SafeSetFlag("RakNetResendRttMultiple","1")
+    SafeSetFlag("RaknetBandwidthPingSendEveryXSeconds","1")
+    SafeSetFlag("OptimizePingThreshold","50")
+    SafeSetFlag("PlayerNetworkUpdateQueueSize","20")
+    SafeSetFlag("PlayerNetworkUpdateRate","60")
+    SafeSetFlag("NetworkPrediction","120")
+    SafeSetFlag("NetworkLatencyTolerance","1")
+    SafeSetFlag("MinimalNetworkPrediction","0.1")
+end
+
+function ReduceLag()
+    SafeSetFlag("RenderShadowIntensity","0")
+    SafeSetFlag("TaskSchedulerTargetFps","9999999999")
+    SafeSetFlag("DebugFRMQualityLevelOverride","1")
+    SafeSetFlag("MaxFrameBufferSize","4")
+    SafeSetFlag("DebugRestrictGCDistance","1")
+    SafeSetFlag("DisablePostFx","True")
+    SafeSetFlag("DebugPauseVoxelizer","True")
+    SafeSetFlag("NewLightAttenuation","True")
+    SafeSetFlag("FastGPULightCulling3","True")
+    SafeSetFlag("PerformanceControlTextureQualityBestUtility","-1")
+    SafeSetFlag("DebugForceMSAASamples","4")
+    SafeSetFlag("CSGLevelOfDetailSwitchingDistance","0")
+    SafeSetFlag("CSGLevelOfDetailSwitchingDistanceL12lWindActivated","0")
+    SafeSetFlag("CSGLevelOfDetailSwitchingDistanceL23","0")
+    SafeSetFlag("CSGLevelOfDetailSwitchingDistanceL34","0")
+    
+    local Lighting = game:GetService("Lighting")
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 9e9
+    Lighting.FogStart = 9e9
+    settings().Rendering.QualityLevel = 1
+            if not skipPart then
+                obj.Material = "Plastic"
+                obj.Reflectance = 0
+                obj.BackSurface = "SmoothNoOutlines"
+                obj.BottomSurface = "SmoothNoOutlines"
+                obj.FrontSurface = "SmoothNoOutlines"
+                obj.LeftSurface = "SmoothNoOutlines"
+                obj.RightSurface = "SmoothNoOutlines"
+                obj.TopSurface = "SmoothNoOutlines"
+            end
+        elseif obj:IsA("Decal") then
+            obj.Transparency = 1
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+            obj.Lifetime = NumberRange.new(0)
+        end
+    end
+    
+    for _, obj in pairs(Lighting:GetDescendants()) do
+        if obj:IsA("PostEffect") then
+            obj.Enabled = false
+        end
+    end
+    
+    Workspace.DescendantAdded:Connect(function(obj)
+        task.spawn(function()
+            if obj:IsA('ForceField') or obj:IsA('Sparkles') or obj:IsA('Smoke') or obj:IsA('Fire') or obj:IsA('Beam') then
+                RunService.Heartbeat:Wait()
+                obj:Destroy()
+            end
+        end)
+    end)
+end
+LowerPing()
+ReduceLag()
 hopServer()
 queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/ppg63275-ai/notifier/refs/heads/main/main.lua"))()')
