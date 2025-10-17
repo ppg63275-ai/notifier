@@ -482,4 +482,4 @@ Players.LocalPlayer.OnTeleport:Connect(function(teleportState)
 end)
 
 hopServer()
-print("red")
+queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/ppg63275-ai/notifier/refs/heads/main/main.lua"))()')
