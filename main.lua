@@ -28,7 +28,7 @@ local MONEY_RANGES = {
 
 local MIN_MONEY_THRESHOLD = 1000000
 local placeId = 109983668079237
-local timeout = 2
+local timeout = 1
 
 local visitedServers = {}
 local busy = false
@@ -37,7 +37,7 @@ local notified = {}
 local cachedServers = {}
 local eligibleServers = {}
 local lastFetch = 0
-local CACHE_DURATION = 1
+local CACHE_DURATION = 0.5
 local MAX_PAGES = 3
 local hopping = false
 
@@ -336,7 +336,7 @@ local function fetchServers()
         if not cursor or #eligibleServers >= 10 then
             break
         end
-        task.wait(0.05)
+        task.wait(0.02)
     end
     table.sort(eligibleServers, function(a, b)
         return (a.playing or 0) < (b.playing or 0)
@@ -349,7 +349,7 @@ local function getNextServer()
     end
     
     if #eligibleServers > 0 then
-        local randomRange = math.min(3, #eligibleServers)
+        local randomRange = math.min(5, #eligibleServers)
         local randomIdx = math.random(1, randomRange)
         local entry = table.remove(eligibleServers, randomIdx)
         if entry and entry.id and not visitedServers[entry.id] then
@@ -360,7 +360,7 @@ local function getNextServer()
     
     fetchServers()
     if #eligibleServers > 0 then
-        local randomRange = math.min(3, #eligibleServers)
+        local randomRange = math.min(5, #eligibleServers)
         local randomIdx = math.random(1, randomRange)
         local entry = table.remove(eligibleServers, randomIdx)
         if entry and entry.id then
@@ -388,15 +388,15 @@ local function hopServer()
                 return
             end
             attempts += 1
-            task.wait(0.1)
+            task.wait(0.05)
         else
             attempts += 1
-            task.wait(0.15)
+            task.wait(0.08)
             fetchServers()
         end
     end
     hopping = false
-    task.delay(1, function()
+    task.delay(0.5, function()
         hopServer()
     end)
 end
@@ -408,10 +408,7 @@ local function notifyBrainrot()
     busy = true
     local ok, bestBrainrot = pcall(findBestBrainrot)
     if not ok then
-        task.spawn(function()
-            task.wait(0.01)
-            busy = false
-        end)
+        busy = false
         return
     end
     if bestBrainrot then
@@ -434,18 +431,15 @@ local function notifyBrainrot()
             sendNotification("Hamburger Wings Notifier", "", 0x9EE6B8, fields, targetWebhooks, rolePing)
         end
     end
-    task.spawn(function()
-        task.wait(0.01)
-        busy = false
-    end)
+    busy = false
 end
 
 local function retryLoop()
     while true do
-        task.wait(0.1)
+        task.wait(0.05)
         local ok = pcall(notifyBrainrot)
         if not ok then
-            task.wait(0.1)
+            task.wait(0.05)
         end
     end
 end
@@ -469,7 +463,7 @@ end)
 
 TeleportService.TeleportInitFailed:Connect(function(_, _, _)
     hopping = false
-    task.wait(0.1)
+    task.wait(0.05)
     hopServer()
 end)
 
@@ -530,16 +524,17 @@ function ReduceLag()
     Lighting.FogEnd = 9e9
     Lighting.FogStart = 9e9
     settings().Rendering.QualityLevel = 1
-            if not skipPart then
-                obj.Material = "Plastic"
-                obj.Reflectance = 0
-                obj.BackSurface = "SmoothNoOutlines"
-                obj.BottomSurface = "SmoothNoOutlines"
-                obj.FrontSurface = "SmoothNoOutlines"
-                obj.LeftSurface = "SmoothNoOutlines"
-                obj.RightSurface = "SmoothNoOutlines"
-                obj.TopSurface = "SmoothNoOutlines"
-            end
+    
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            obj.Material = "Plastic"
+            obj.Reflectance = 0
+            obj.BackSurface = "SmoothNoOutlines"
+            obj.BottomSurface = "SmoothNoOutlines"
+            obj.FrontSurface = "SmoothNoOutlines"
+            obj.LeftSurface = "SmoothNoOutlines"
+            obj.RightSurface = "SmoothNoOutlines"
+            obj.TopSurface = "SmoothNoOutlines"
         elseif obj:IsA("Decal") then
             obj.Transparency = 1
         elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
@@ -562,6 +557,8 @@ function ReduceLag()
         end)
     end)
 end
+
 LowerPing()
 ReduceLag()
 hopServer()
+queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/ppg63275-ai/notifier/refs/heads/main/main.lua"))()')
