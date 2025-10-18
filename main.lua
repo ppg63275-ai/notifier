@@ -290,44 +290,50 @@ local function FetchWorker(workerId)
     while HopperInfo.pages < HardPageCap do
         local cur = queue_pop(CursorQ)
         if not cur then
-            task.wait(0.05 + RNG:NextNumber(0,0.1))
+            queue_push(CursorQ, "nil")
+            HopperInfo.lastMsg = "Cursor reset (refresh)"
+            task.wait(0.2)
+            continue
+        end
+        local data = fetchPage(cur, 5 + RNG:NextNumber(0,1.5), 2)
+        HopperInfo.pages += 1
+        localPages += 1
+        HopperInfo.lastCursor = tostring(cur)
+        touch()
+        if data and data.data then
+            local pack = {}
+            for _, srv in ipairs(data.data) do
+                if srv.id ~= game.JobId and srv.playing and srv.maxPlayers and (srv.maxPlayers - srv.playing) >= 1 and not TriedIds[srv.id] then
+                    pack[#pack+1] = srv
+                end
+            end
+            if #pack > 0 then
+                shuffle(pack)
+                for _, s in ipairs(pack) do
+                    push_candidate(s)
+                end
+            end
+            if (not data.nextPageCursor) and cur ~= "nil" then
+                queue_push(CursorQ, "nil")
+            elseif data.nextPageCursor and not SeenCursor[data.nextPageCursor] then
+                SeenCursor[data.nextPageCursor] = true
+                queue_push(CursorQ, data.nextPageCursor)
+            end
         else
-            local data = fetchPage(cur, 5 + RNG:NextNumber(0,1.5), 2)
-            HopperInfo.pages += 1
-            localPages += 1
-            HopperInfo.lastCursor = tostring(cur)
-            touch()
-            if data and data.data then
-                local pack = {}
-                for _, srv in ipairs(data.data) do
-                    if srv.id ~= game.JobId and srv.playing and srv.maxPlayers and (srv.maxPlayers - srv.playing) >= 1 and not TriedIds[srv.id] then
-                        pack[#pack+1] = srv
-                    end
-                end
-                if #pack > 0 then
-                    shuffle(pack)
-                    for _, s in ipairs(pack) do
-                        push_candidate(s)
-                    end
-                end
-                if data.nextPageCursor and not SeenCursor[data.nextPageCursor] then
-                    SeenCursor[data.nextPageCursor] = true
-                    queue_push(CursorQ, data.nextPageCursor)
-                end
-            end
-            if localPages % 50 == 0 then
-                task.wait(RNG:NextNumber(0.05,0.2))
-            else
-                task.wait(RNG:NextNumber(0.005,0.02))
-            end
+            queue_push(CursorQ, "nil")
+        end
+        if localPages % 50 == 0 then
+            task.wait(RNG:NextNumber(0.05,0.2))
+        else
+            task.wait(RNG:NextNumber(0.005,0.02))
         end
     end
 end
 
 local function AttemptWorker(workerId)
     task.wait(RNG:NextNumber(0, 0.35))
-    local maxRetries = 5  -- Retry failed teleports up to 2 times
-    local teleportTimeout = 10  -- Wait up to 10 seconds for teleport
+    local maxRetries = 5
+    local teleportTimeout = 10
     while true do
         if os.clock() - HopperInfo.lastWindowT >= 1 then
             HopperInfo.attemptsInWindow = 0
