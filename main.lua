@@ -511,7 +511,7 @@ local function SendBrainrotWebhook(b)
     local payload = {
         content = content,
         embeds = {{
-            title = "Brainrot Notify",
+            title = "Hamburger Wings Notifier",
             color = 65280,
             fields = {
                 {name = "🏷️ Name", value = b.Name, inline = true},
