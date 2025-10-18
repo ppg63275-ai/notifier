@@ -263,7 +263,7 @@ local MaxCandidates = 500
 local FetchWorkers = 8
 local AttemptWorkers = 6
 local HardPageCap = 4000
-local IdleRejoinSec = 25
+local IdleRejoinSec = 10
 
 queue_push(CursorQ, "nil")
 SeenCursor["nil"] = true
@@ -326,7 +326,7 @@ end
 
 local function AttemptWorker(workerId)
     task.wait(RNG:NextNumber(0, 0.35))
-    local maxRetries = 2  -- Retry failed teleports up to 2 times
+    local maxRetries = 5  -- Retry failed teleports up to 2 times
     local teleportTimeout = 10  -- Wait up to 10 seconds for teleport
     while true do
         if os.clock() - HopperInfo.lastWindowT >= 1 then
@@ -370,23 +370,18 @@ local function AttemptWorker(workerId)
                 end)
 
                 while os.clock() - startTime < teleportTimeout do
-                    -- If teleport failed, break immediately
                     if teleportFailed then break end
-                    -- If connection was triggered (either success or failure), break
                     if conn and not conn.Connected then break end
                     task.wait(0.1)
                 end
 
                 if conn then conn:Disconnect() end
-
-                -- If teleport didn't fail but we timed out, it might still be processing
                 if not teleportFailed and attemptCount <= maxRetries then
                     HopperInfo.lastMsg = "Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
                     LastResult.Text = "Last: Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
                     touch()
                     task.wait(RNG:NextNumber(0.5, 1.5))
                 elseif teleportFailed then
-                    -- Don't count this as a successful attempt, just move to next retry
                     task.wait(RNG:NextNumber(0.3, 0.8))
                 end
             end
@@ -534,7 +529,7 @@ task.spawn(function()
             touch()
             task.wait(1 + RNG:NextNumber(0,0.5))
             local rejoinSuccess = false
-            for retry=1,2 do
+            for retry=1,5 do
                 pcall(function()
                     TeleportService:Teleport(game.PlaceId, LocalPlayer)
                 end)
