@@ -466,72 +466,33 @@ local function GetBestBrainrots()
     touch()
     return best
 end
-local Webhooks = {
-    ["1m-10m"] = {
-        url = "https://discord.com/api/webhooks/1428040124305903748/UVy0zNqrGVs9FBNOF4Kwz-iYYXIiKXSd7k2a9o-57BsoStBLNkA5JXMZYtYpIzwIEUfw",
-        role = "<@&1428040722715639892>"
-    },
-    ["10m-50m"] = {
-        url = "https://discord.com/api/webhooks/1428040239573897368/6wq30kOfV5UpvvTaMYtWS4XexS_WVMnS7A4_RGFGkmaEryqcxzvFNPR-ZlQGlh2vHpTM",
-        role = "<@&1428040796312965222>"
-    },
-    ["50m-100m"] = {
-        url = "https://discord.com/api/webhooks/1428040311447486474/sX2oyfRr0VOKcP_126njlI0BM_L2YnfFHFQ6G2xGWULv0KiTYvipXFNXhfWX_amWon-T",
-        role = "<@&1428040887715237889>"
-    },
-    ["100m+"] = {
-        url = "https://discord.com/api/webhooks/1428040400119271536/PyoYUl6lDs0E5IDOByHR6K6nQrwVks1x7l_VngXrR4wCpyXKcIJFdvUTwIyXY11GLK-p",
-        role = "<@&1428040962139230268>"
-    }
-}
+local API_URL = "https://proxilero.vercel.app/api/notify.js"
 
 local function SendBrainrotWebhook(b)
-    local amt = b.Amount
-    local entry = nil
-
-    if amt >= 1e6 and amt < 10e6 then
-        entry = Webhooks["1m-10m"]
-    elseif amt >= 10e6 and amt < 50e6 then
-        entry = Webhooks["10m-50m"]
-    elseif amt >= 50e6 and amt < 100e6 then
-        entry = Webhooks["50m-100m"]
-    elseif amt >= 100e6 then
-        entry = Webhooks["100m+"]
-    end
-
-    if not entry or not entry.url then return end
+    if not b or not b.Key then return end
 
     local sig = tostring(game.JobId).."|"..tostring(b.Key).."|"..tostring(b.RealAmount).."|"..tostring(b.Name)
     if GLOBAL.__SentWebhooks[sig] then return end
     GLOBAL.__SentWebhooks[sig] = true
 
-    local joiner = "https://chillihub1.github.io/chillihub-joiner/?placeId="..game.PlaceId.."&gameInstanceId="..game.JobId
-    local content = entry.role or ""
-    
     local payload = {
-        content = content,
-        embeds = {{
-            title = "Hamburger Wings Notifier",
-            color = 65280,
-            fields = {
-                {name = "🏷️ Name", value = b.Name, inline = true},
-                {name = "💰 Money per sec", value = b.RealAmount, inline = true},
-                {name = "👥 Players", value = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers), inline = true},
-                {name = "Job ID (Mobile)", value = "```"..game.JobId.."```", inline = false},
-                {name = "Job ID (PC)", value = "```"..game.JobId.."```", inline = false},
-                {name = "🔗 Join Link", value = "[Click to Join]("..joiner..")", inline = false},
-                {name = "💻 Join Script (PC)", value = '```lua\ngame:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', "'..game.JobId..'", game.Players.LocalPlayer)\n```', inline = false}
-            },
-            footer = {text = "modified by sigma paster xynnn • "..os.date("%I:%M %p")}
-        }}
+        id = b.Key,
+        name = b.Name or "Unknown",
+        amount = b.Amount or 0,
+        realAmount = b.RealAmount or "",
+        jobId = game.JobId,
+        placeId = game.PlaceId,
+        players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers),
+        timestamp = os.time(),
     }
-
-    DoRequest({
-        Url = entry.url,
-        Method = "POST",
-        Headers = {["Content-Type"]="application/json"},
-        Body = HttpService:JSONEncode(payload)
-    })
+    local ok, res = pcall(function()
+        return DoRequest({
+            Url = API_URL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
 end
 
 task.spawn(function()
