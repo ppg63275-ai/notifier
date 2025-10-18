@@ -476,7 +476,7 @@ local function SendBrainrotWebhook(b)
     GLOBAL.__SentWebhooks[sig] = true
 
     local payload = {
-        id = b.Key,
+        id = sig,
         name = b.Name or "Unknown",
         amount = b.Amount or 0,
         realAmount = b.RealAmount or "",
