@@ -1,253 +1,602 @@
+local GLOBAL = getgenv and getgenv() or _G
+GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
+
+task.wait(3)
+local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local LocalPlayer = Players.LocalPlayer
-getgenv().MinGeneration = "1M/S"
-local PlaceID, JobId = game.PlaceId, game.JobId
-local tried, foundCursor = {}, ""
-local fileName = "NotSameServers.json"
-local AllIDs = {}
-local hourNow = os.date("!*t").hour
-if not isfile(fileName) then
-    AllIDs = { hourNow }
-    writefile(fileName, HttpService:JSONEncode(AllIDs))
-else
-    AllIDs = HttpService:JSONDecode(readfile(fileName))
-    if AllIDs[1] ~= hourNow then
-        AllIDs = { hourNow }
-        writefile(fileName, HttpService:JSONEncode(AllIDs))
-    end
-end
-local function cleanGenText(t)
-    local s = tostring(t or ""):upper()
-    s = s:gsub("%$", ""):gsub(",", ""):gsub("%s+", "")
-    if not s:find("/S") and s:match("^%d+%.?%d*[KMB]$") then s = s.."/S" end
-    return s
+repeat task.wait() until LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Plots = cloneref(workspace:WaitForChild("Plots", 9e9))
+ReplicatedStorage:WaitForChild("Controllers", 9e9)
+local PlotController = require(ReplicatedStorage.Controllers.PlotController)
+
+local PlayerPlot
+repeat
+    PlayerPlot = PlotController.GetMyPlot()
+    task.wait()
+until PlayerPlot
+
+local PlayerBase = PlayerPlot.PlotModel
+
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "ScanProgressGui"
+Gui.ResetOnSpawn = false
+Gui.IgnoreGuiInset = true
+Gui.Parent = PlayerGui
+
+local Frame = Instance.new("Frame")
+Frame.Name = "Container"
+Frame.AnchorPoint = Vector2.new(0.5, 0)
+Frame.Position = UDim2.new(0.5, 0, 0.05, 0)
+Frame.Size = UDim2.new(0, 360, 0, 200)
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Frame.BackgroundTransparency = 0.2
+Frame.BorderSizePixel = 0
+Frame.Parent = Gui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = Frame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, -20, 0, 24)
+Title.Position = UDim2.new(0, 10, 0, 6)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Text = "Scanning Plots"
+Title.Parent = Frame
+
+local Progress = Instance.new("TextLabel")
+Progress.Name = "Progress"
+Progress.BackgroundTransparency = 1
+Progress.Size = UDim2.new(1, -20, 0, 20)
+Progress.Position = UDim2.new(0, 10, 0, 32)
+Progress.Font = Enum.Font.Gotham
+Progress.TextSize = 16
+Progress.TextColor3 = Color3.fromRGB(200, 200, 200)
+Progress.TextXAlignment = Enum.TextXAlignment.Left
+Progress.Text = "0/0 (0%)"
+Progress.Parent = Frame
+
+local Hopper = Instance.new("TextLabel")
+Hopper.Name = "Hopper"
+Hopper.BackgroundTransparency = 1
+Hopper.Size = UDim2.new(1, -20, 0, 20)
+Hopper.Position = UDim2.new(0, 10, 0, 56)
+Hopper.Font = Enum.Font.Gotham
+Hopper.TextSize = 15
+Hopper.TextColor3 = Color3.fromRGB(180, 220, 255)
+Hopper.TextXAlignment = Enum.TextXAlignment.Left
+Hopper.Text = "Hopper: Idle"
+Hopper.Parent = Frame
+
+local Attempts = Instance.new("TextLabel")
+Attempts.Name = "Attempts"
+Attempts.BackgroundTransparency = 1
+Attempts.Size = UDim2.new(1, -20, 0, 20)
+Attempts.Position = UDim2.new(0, 10, 0, 78)
+Attempts.Font = Enum.Font.Gotham
+Attempts.TextSize = 14
+Attempts.TextColor3 = Color3.fromRGB(200, 200, 200)
+Attempts.TextXAlignment = Enum.TextXAlignment.Left
+Attempts.Text = "Attempts/s: 0.0  Total: 0"
+Attempts.Parent = Frame
+
+local Pages = Instance.new("TextLabel")
+Pages.Name = "Pages"
+Pages.BackgroundTransparency = 1
+Pages.Size = UDim2.new(1, -20, 0, 20)
+Pages.Position = UDim2.new(0, 10, 0, 98)
+Pages.Font = Enum.Font.Gotham
+Pages.TextSize = 14
+Pages.TextColor3 = Color3.fromRGB(200, 200, 200)
+Pages.TextXAlignment = Enum.TextXAlignment.Left
+Pages.Text = "Pages Scanned: 0  Cursor: nil"
+Pages.Parent = Frame
+
+local Candidates = Instance.new("TextLabel")
+Candidates.Name = "Candidates"
+Candidates.BackgroundTransparency = 1
+Candidates.Size = UDim2.new(1, -20, 0, 20)
+Candidates.Position = UDim2.new(0, 10, 0, 118)
+Candidates.Font = Enum.Font.Gotham
+Candidates.TextSize = 14
+Candidates.TextColor3 = Color3.fromRGB(200, 200, 200)
+Candidates.TextXAlignment = Enum.TextXAlignment.Left
+Candidates.Text = "Candidates: 0  Tried IDs: 0"
+Candidates.Parent = Frame
+
+local LastResult = Instance.new("TextLabel")
+LastResult.Name = "LastResult"
+LastResult.BackgroundTransparency = 1
+LastResult.Size = UDim2.new(1, -20, 0, 20)
+LastResult.Position = UDim2.new(0, 10, 0, 138)
+LastResult.Font = Enum.Font.Gotham
+LastResult.TextSize = 14
+LastResult.TextColor3 = Color3.fromRGB(200, 200, 200)
+LastResult.TextXAlignment = Enum.TextXAlignment.Left
+LastResult.Text = "Last: None"
+LastResult.Parent = Frame
+
+local Status = Instance.new("TextLabel")
+Status.Name = "Status"
+Status.BackgroundTransparency = 1
+Status.Size = UDim2.new(1, -20, 0, 20)
+Status.Position = UDim2.new(0, 10, 0, 158)
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 14
+Status.TextColor3 = Color3.fromRGB(200, 200, 200)
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Text = "Status: Idle"
+Status.Parent = Frame
+
+local Meter = Instance.new("TextLabel")
+Meter.Name = "Meter"
+Meter.BackgroundTransparency = 1
+Meter.Size = UDim2.new(1, -20, 0, 20)
+Meter.Position = UDim2.new(0, 10, 0, 178)
+Meter.Font = Enum.Font.Gotham
+Meter.TextSize = 14
+Meter.TextColor3 = Color3.fromRGB(200, 200, 200)
+Meter.TextXAlignment = Enum.TextXAlignment.Left
+Meter.Text = "Q: 0/0"
+Meter.Parent = Frame
+
+local function toNumber(str)
+    local s = (str or ""):gsub(",", ""):gsub("%s*/s%s*", ""):gsub("%$", "")
+    local m = 1
+    if s:find("K") then m = 1e3 elseif s:find("M") then m = 1e6 elseif s:find("B") then m = 1e9 elseif s:find("T") then m = 1e12 end
+    s = s:gsub("[KMBT]", "")
+    local n = tonumber(s)
+    return n and (n * m) or 0
 end
 
-local function getPlotOwner(plot)
-    for _, d in ipairs(plot:GetDescendants()) do
-        if d:IsA("TextLabel") and d.Text and d.Text:find("'s Base") then
-            return d.Text:gsub("'s Base", "")
+local function setProgress(c,t)
+    local pct = t > 0 and math.floor((c/t)*100) or 0
+    Progress.Text = tostring(c).."/"..tostring(t).." ("..tostring(pct).."%)"
+end
+
+local ScanComplete = false
+local seedBase = tostring(LocalPlayer.UserId).."|"..tostring(game.JobId).."|"..tostring(os.clock()).."|"..HttpService:GenerateGUID(false)
+local seedNum = tonumber((seedBase:gsub("%D",""):sub(1,9))) or math.floor(os.clock()*1e6)
+local RNG = Random.new(seedNum)
+local InitialJitter = RNG:NextNumber(0.02, 1.2)
+
+local HopperInfo = {
+    attemptsTotal = 0,
+    pages = 0,
+    lastCursor = "nil",
+    candidates = 0,
+    triedIds = 0,
+    lastMsg = "Idle",
+    lastActivityT = os.clock(),
+    attemptsInWindow = 0,
+    lastWindowT = os.clock()
+}
+
+local function touch()
+    HopperInfo.lastActivityT = os.clock()
+end
+
+local function DoRequest(opt)
+    if syn and syn.request then
+        local ok, res = pcall(syn.request, opt)
+        if ok and res then return res end
+    end
+    if request then
+        local ok, res = pcall(request, opt)
+        if ok and res then return res end
+    end
+    if http_request then
+        local ok, res = pcall(http_request, opt)
+        if ok and res then return res end
+    end
+    if http and http.request then
+        local ok, res = pcall(http.request, opt)
+        if ok and res then return res end
+    end
+    if type(opt) == "table" and opt.Url and opt.Method == "GET" then
+        local ok, r = pcall(function() return {Body = HttpService:GetAsync(opt.Url), StatusCode = 200} end)
+        if ok and r then return r end
+    end
+    return nil
+end
+
+local function fetchPage(cursor, timeoutSec, retries)
+    local t0 = os.clock()
+    local to = timeoutSec or 6
+    local tries = retries or 2
+    local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100&sortOrder=Asc"
+    if cursor and cursor ~= "nil" then url = url .. "&cursor=" .. HttpService:UrlEncode(cursor) end
+    for _=1,tries do
+        local done = false
+        local data = nil
+        task.spawn(function()
+            local res = DoRequest({Url = url, Method = "GET"})
+            if res and res.Body then
+                local ok, payload = pcall(HttpService.JSONDecode, HttpService, res.Body)
+                if ok and type(payload) == "table" then
+                    data = payload
+                end
+            end
+            done = true
+        end)
+        while not done and os.clock() - t0 < to do
+            task.wait(0.03)
         end
+        if done and data then return data end
+        t0 = os.clock()
     end
-    return "Unknown"
+    return nil
 end
 
-local function isValidGenerationText(text)
-    local s = cleanGenText(text)
-    return s:match("^%d+%.?%d*[KMB]/S$") ~= nil
+local function queue_new()
+    return {list={}, head=1, tail=0}
 end
 
-local function parseGeneration(genStr)
-    local s = cleanGenText(genStr):gsub("/S", "")
-    local mult = 1
-    if s:find("K") then mult, s = 1e3, s:gsub("K", "")
-    elseif s:find("M") then mult, s = 1e6, s:gsub("M", "")
-    elseif s:find("B") then mult, s = 1e9, s:gsub("B", "")
+local function queue_push(q, v)
+    q.tail += 1
+    q.list[q.tail] = v
+end
+
+local function queue_pop(q)
+    if q.head > q.tail then return nil end
+    local v = q.list[q.head]
+    q.list[q.head] = nil
+    q.head += 1
+    return v
+end
+
+local CandidateQ = queue_new()
+local CursorQ = queue_new()
+local SeenCursor = {}
+local TriedIds = {}
+local MaxCandidates = 500
+local FetchWorkers = 8
+local AttemptWorkers = 6
+local HardPageCap = 4000
+local IdleRejoinSec = 25
+
+queue_push(CursorQ, "nil")
+SeenCursor["nil"] = true
+
+local function push_candidate(srv)
+    if TriedIds[srv.id] then return end
+    TriedIds[srv.id] = true
+    if (CandidateQ.tail - CandidateQ.head + 1) < MaxCandidates then
+        queue_push(CandidateQ, srv)
+        HopperInfo.candidates = CandidateQ.tail - CandidateQ.head + 1
     end
-    local num = tonumber(s) or 0
-    return num * mult
 end
 
-local function findGroupedBrainrots()
-    local grouped = {}
-    local plots = workspace:FindFirstChild("Plots")
-    if not plots then return grouped end
-    for _, plot in ipairs(plots:GetChildren()) do
-        local owner = getPlotOwner(plot)
-        if owner ~= LocalPlayer.DisplayName then
-            local seen = {}
-            for _, gen in ipairs(plot:GetDescendants()) do
-                if gen:IsA("TextLabel") and gen.Name == "Generation" then
-                    local raw = tostring(gen.Text or "")
-                    if isValidGenerationText(raw) then
-                        local podium = gen.Parent
-                        if podium and not seen[podium] then
-                            local skip = false
-                            for _, v in ipairs(podium:GetDescendants()) do
-                                if v:IsA("TextLabel") then
-                                    local lname = tostring(v.Name or ""):lower()
-                                    local ltext = tostring(v.Text or ""):upper()
-                                    if (lname:find("ready!") or ltext:find("READY!")) and ltext:find("IN MACHINE") then
-                                        skip = true
-                                        break
-                                    end
-                                end
-                            end
-                            if not skip then
-                                local displayName = "Unknown"
-                                for _, v in ipairs(podium:GetDescendants()) do
-                                    if v:IsA("TextLabel") and v.Name == "DisplayName" then
-                                        displayName = v.Text or displayName
-                                        break
-                                    end
-                                end
-                                seen[podium] = true
-                                grouped[owner] = grouped[owner] or {}
-                                table.insert(grouped[owner], {
-                                    displayName = displayName,
-                                    generationRaw = raw,
-                                    generationClean = cleanGenText(raw),
-                                    instance = podium
-                                })
-                            end
-                        end
+local function shuffle(a)
+    for i = #a, 2, -1 do
+        local j = RNG:NextInteger(1, i)
+        a[i], a[j] = a[j], a[i]
+    end
+end
+
+local function FetchWorker(workerId)
+    task.wait(RNG:NextNumber(0, 0.4))
+    local localPages = 0
+    while HopperInfo.pages < HardPageCap do
+        local cur = queue_pop(CursorQ)
+        if not cur then
+            task.wait(0.05 + RNG:NextNumber(0,0.1))
+        else
+            local data = fetchPage(cur, 5 + RNG:NextNumber(0,1.5), 2)
+            HopperInfo.pages += 1
+            localPages += 1
+            HopperInfo.lastCursor = tostring(cur)
+            touch()
+            if data and data.data then
+                local pack = {}
+                for _, srv in ipairs(data.data) do
+                    if srv.id ~= game.JobId and srv.playing and srv.maxPlayers and (srv.maxPlayers - srv.playing) >= 1 and not TriedIds[srv.id] then
+                        pack[#pack+1] = srv
                     end
                 end
-            end
-        end
-    end
-    return grouped
-end
-
-local function getNextServer()
-    local url = "https://games.roblox.com/v1/games/"..PlaceID.."/servers/Public?sortOrder=Asc&limit=100"
-    if foundCursor ~= "" then url ..= "&cursor="..foundCursor end
-    local ok, data = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
-    if not ok or not data or not data.data then return end
-    foundCursor = data.nextPageCursor or ""
-    for _, s in ipairs(data.data) do
-        local id = tostring(s.id or "")
-        if id ~= "" and s.playing and s.maxPlayers and s.playing < s.maxPlayers and id ~= JobId and not tried[id] then
-            if not table.find(AllIDs, id) then
-                table.insert(AllIDs, id)
-                writefile(fileName, HttpService:JSONEncode(AllIDs))
-                tried[id] = true
-                return id
-            end
-        end
-    end
-end
-local function hopServer()
-    local id = getNextServer()
-    if id and id ~= "" then
-        TeleportService:TeleportToPlaceInstance(PlaceID, id)
-    else
-        task.wait(2)
-    end
-end
-local role1to10m = "<@1428040722715639892>"
-local role10to50m = "<@1428040796312965222>"
-local role50to100m = "<@1428040887715237889>"
-local role100mplus = "<@1428040962139230268>"
-
-local webhook1to10m = "https://discord.com/api/webhooks/1428040124305903748/UVy0zNqrGVs9FBNOF4Kwz-iYYXIiKXSd7k2a9o-57BsoStBLNkA5JXMZYtYpIzwIEUfw"
-local webhook10to50m = "https://discord.com/api/webhooks/1428040239573897368/6wq30kOfV5UpvvTaMYtWS4XexS_WVMnS7A4_RGFGkmaEryqcxzvFNPR-ZlQGlh2vHpTM"
-local webhook50to100m = "https://discord.com/api/webhooks/1428040311447486474/sX2oyfRr0VOKcP_126njlI0BM_L2YnfFHFQ6G2xGWULv0KiTYvipXFNXhfWX_amWon-T"
-local webhook100mplus = "https://discord.com/api/webhooks/1428040400119271536/PyoYUl6lDs0E5IDOByHR6K6nQrwVks1x7l_VngXrR4wCpyXKcIJFdvUTwIyXY11GLK-p"
-local VERCEL_URL = "https://proxilero.vercel.app/api/notify"
-local API_KEY = "xynnnwashere!"
-
-local function forwardToProxy(displayName, genRaw, genVal, placeId, jobId, mentionRole)
-    local f = syn and syn.request or http_request or request or http and http.request
-    if typeof(f) ~= "function" then return false end
-
-    local body = HttpService:JSONEncode({
-        displayName = displayName,
-        genRaw = genRaw,
-        genVal = genVal,
-        placeId = placeId,
-        jobId = jobId,
-        mentionRole = mentionRole
-    })
-
-    local ok, res = pcall(function()
-        return f({
-            Url = VERCEL_URL,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["x-api-key"] = API_KEY
-            },
-            Body = body
-        })
-    end)
-
-    return ok and res and res.Success
-end
-
-local function sendNotify(grouped)
-    local minRequired = parseGeneration(getgenv().MinGeneration)
-    local sentSomething = false
-
-    for owner, items in pairs(grouped) do
-        for _, b in ipairs(items) do
-            local val = parseGeneration(b.generationClean)
-            if val >= minRequired then
-                local mentionRole = ""
-                if val >= 1e6 and val < 1e7 then
-                    mentionRole = role1to10m
-                elseif val >= 1e7 and val < 5e7 then
-                    mentionRole = role10to50m
-                elseif val >= 5e7 and val < 1e8 then
-                    mentionRole = role50to100m
-                elseif val >= 1e8 then
-                    mentionRole = role100mplus
+                if #pack > 0 then
+                    shuffle(pack)
+                    for _, s in ipairs(pack) do
+                        push_candidate(s)
+                    end
                 end
+                if data.nextPageCursor and not SeenCursor[data.nextPageCursor] then
+                    SeenCursor[data.nextPageCursor] = true
+                    queue_push(CursorQ, data.nextPageCursor)
+                end
+            end
+            if localPages % 50 == 0 then
+                task.wait(RNG:NextNumber(0.05,0.2))
+            else
+                task.wait(RNG:NextNumber(0.005,0.02))
+            end
+        end
+    end
+end
 
-                local ok = pcall(function()
-                    forwardToProxy(b.displayName, b.generationRaw, val, PlaceID, JobId, mentionRole)
+local function AttemptWorker(workerId)
+    task.wait(RNG:NextNumber(0, 0.35))
+    local maxRetries = 2  -- Retry failed teleports up to 2 times
+    local teleportTimeout = 10  -- Wait up to 10 seconds for teleport
+    while true do
+        if os.clock() - HopperInfo.lastWindowT >= 1 then
+            HopperInfo.attemptsInWindow = 0
+            HopperInfo.lastWindowT = os.clock()
+        end
+        local budget = 10
+        if HopperInfo.attemptsInWindow >= budget then
+            task.wait(0.05)
+        end
+        local srv = queue_pop(CandidateQ)
+        if not srv then
+            task.wait(0.03 + RNG:NextNumber(0,0.07))
+        else
+            HopperInfo.candidates = CandidateQ.tail - CandidateQ.head + 1
+            HopperInfo.triedIds += 1
+            HopperInfo.attemptsTotal += 1
+            HopperInfo.attemptsInWindow += 1
+            HopperInfo.lastMsg = "Attempt "..string.sub(srv.id,1,8)
+            LastResult.Text = "Last: Attempt "..string.sub(srv.id,1,8)
+            touch()
+            
+            local attemptCount = 0
+            local teleportSuccess = false
+            while attemptCount <= maxRetries and not teleportSuccess do
+                attemptCount += 1
+                local conn
+                local startTime = os.clock()
+                local teleportFailed = false
+
+                conn = TeleportService.TeleportInitFailed:Connect(function(_, err)
+                    teleportFailed = true
+                    HopperInfo.lastMsg = "Fail "..tostring(err or "Unknown").." (Attempt "..attemptCount..")"
+                    LastResult.Text = "Last: Fail "..tostring(err or "Unknown").." (Attempt "..attemptCount..")"
+                    if conn then conn:Disconnect() end
+                    touch()
                 end)
 
-                if ok then
-                    sentSomething = true
+                pcall(function()
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, srv.id, LocalPlayer)
+                end)
+
+                while os.clock() - startTime < teleportTimeout do
+                    -- If teleport failed, break immediately
+                    if teleportFailed then break end
+                    -- If connection was triggered (either success or failure), break
+                    if conn and not conn.Connected then break end
                     task.wait(0.1)
                 end
+
+                if conn then conn:Disconnect() end
+
+                -- If teleport didn't fail but we timed out, it might still be processing
+                if not teleportFailed and attemptCount <= maxRetries then
+                    HopperInfo.lastMsg = "Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
+                    LastResult.Text = "Last: Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
+                    touch()
+                    task.wait(RNG:NextNumber(0.5, 1.5))
+                elseif teleportFailed then
+                    -- Don't count this as a successful attempt, just move to next retry
+                    task.wait(RNG:NextNumber(0.3, 0.8))
+                end
             end
+            
+            if not teleportSuccess then
+                HopperInfo.lastMsg = "Abandoned after retries for "..string.sub(srv.id,1,8)
+                LastResult.Text = "Last: Abandoned after retries for "..string.sub(srv.id,1,8)
+                touch()
+            end
+            
+            task.wait(RNG:NextNumber(0.06,0.15))
         end
     end
-
-    return sentSomething
 end
-local function startFinder()
-    while true do
-        local grouped = findGroupedBrainrots()
-        if not grouped then
-            repeat local ok = pcall(hopServer) until ok
-            continue
+
+local function TryServerHopParallel()
+    Hopper.Text = "Hopper: Active"
+    task.wait(InitialJitter)
+    for i=1,FetchWorkers do
+        task.spawn(function() FetchWorker(i) end)
+    end
+    for i=1,AttemptWorkers do
+        task.spawn(function() AttemptWorker(i) end)
+    end
+end
+
+local function GetBestBrainrots()
+    local best, seen = {}, {}
+    local list = {}
+    for _, p in ipairs(Plots:GetChildren()) do
+        if not p:IsDescendantOf(PlayerBase) then
+            table.insert(list, p)
         end
-
-        local minReq = parseGeneration(getgenv().MinGeneration)
-        local notifyGrouped = {}
-        local instancesToMark = {}
-        local foundAny = false
-
-        for owner, list in pairs(grouped) do
-            if type(list) == "table" and #list > 0 then
-                for _, item in ipairs(list) do
-                    local inst = item.instance
-                    if inst and not inst:GetAttribute("sent") then
-                        local val = parseGeneration(item.generationClean)
-                        if val >= minReq then
-                            notifyGrouped[owner] = notifyGrouped[owner] or {}
-                            table.insert(notifyGrouped[owner], {
-                                displayName = item.displayName,
-                                generationRaw = item.generationRaw,
-                                generationClean = item.generationClean
-                            })
-                            table.insert(instancesToMark, inst)
-                            foundAny = true
+    end
+    local total = #list
+    local done = 0
+    setProgress(done, total)
+    for _, plot in ipairs(list) do
+        for _, v in ipairs(plot:GetDescendants()) do
+            if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
+                local amt = toNumber(v.Text)
+                if amt > 0 then
+                    local spawn = v.Parent.Parent.Parent
+                    local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
+                    local key
+                    if spawn then
+                        key = spawn:GetAttribute("BrainrotId")
+                        if not key then
+                            key = HttpService:GenerateGUID(false)
+                            spawn:SetAttribute("BrainrotId", key)
                         end
+                    else
+                        key = disp .. ":" .. (v.Parent.Parent:GetFullName())
+                    end
+                    if not seen[key] then
+                        seen[key] = true
+                        table.insert(best, {
+                            Name = disp,
+                            Spawn = spawn,
+                            Label = v,
+                            Actor = nil,
+                            Amount = amt,
+                            RealAmount = v.Text,
+                            Key = key
+                        })
                     end
                 end
             end
         end
+        done += 1
+        setProgress(done, total)
+        task.wait()
+    end
+    table.sort(best, function(a,b) return a.Amount > b.Amount end)
+    Title.Text = "Scan Complete"
+    ScanComplete = true
+    touch()
+    return best
+end
+local Webhooks = {
+    ["1m-10m"] = {
+        url = "https://discord.com/api/webhooks/1428040124305903748/UVy0zNqrGVs9FBNOF4Kwz-iYYXIiKXSd7k2a9o-57BsoStBLNkA5JXMZYtYpIzwIEUfw",
+        role = "<@&1428040722715639892>"
+    },
+    ["10m-50m"] = {
+        url = "https://discord.com/api/webhooks/1428040239573897368/6wq30kOfV5UpvvTaMYtWS4XexS_WVMnS7A4_RGFGkmaEryqcxzvFNPR-ZlQGlh2vHpTM",
+        role = "<@&1428040796312965222>"
+    },
+    ["50m-100m"] = {
+        url = "https://discord.com/api/webhooks/1428040311447486474/sX2oyfRr0VOKcP_126njlI0BM_L2YnfFHFQ6G2xGWULv0KiTYvipXFNXhfWX_amWon-T",
+        role = "<@&1428040887715237889>"
+    },
+    ["100m+"] = {
+        url = "https://discord.com/api/webhooks/1428040400119271536/PyoYUl6lDs0E5IDOByHR6K6nQrwVks1x7l_VngXrR4wCpyXKcIJFdvUTwIyXY11GLK-p",
+        role = "<@&1428040962139230268>"
+    }
+}
 
-        if foundAny then
-    for _, inst in ipairs(instancesToMark) do
-        pcall(function() inst:SetAttribute("sent", true) end)
+local function SendBrainrotWebhook(b)
+    local amt = b.Amount
+    local entry = nil
+
+    if amt >= 1e6 and amt < 10e6 then
+        entry = Webhooks["1m-10m"]
+    elseif amt >= 10e6 and amt < 50e6 then
+        entry = Webhooks["10m-50m"]
+    elseif amt >= 50e6 and amt < 100e6 then
+        entry = Webhooks["50m-100m"]
+    elseif amt >= 100e6 then
+        entry = Webhooks["100m+"]
     end
-    local sent = pcall(function() return sendNotify(notifyGrouped) end)
-    if sent then
-        repeat local ok = pcall(hopServer) until ok
-    else
-        repeat local ok = pcall(hopServer) until ok
-    end
-else
-    repeat local ok = pcall(hopServer) until ok
-       end
-    end
+
+    if not entry or not entry.url then return end
+
+    local sig = tostring(game.JobId).."|"..tostring(b.Key).."|"..tostring(b.RealAmount).."|"..tostring(b.Name)
+    if GLOBAL.__SentWebhooks[sig] then return end
+    GLOBAL.__SentWebhooks[sig] = true
+
+    local joiner = "https://chillihub1.github.io/chillihub-joiner/?placeId="..game.PlaceId.."&gameInstanceId="..game.JobId
+    local content = entry.role or ""
+    
+    local payload = {
+        content = content,
+        embeds = {{
+            title = "Brainrot Notify",
+            color = 65280,
+            fields = {
+                {name = "🏷️ Name", value = b.Name, inline = true},
+                {name = "💰 Money per sec", value = b.RealAmount, inline = true},
+                {name = "👥 Players", value = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers), inline = true},
+                {name = "Job ID (Mobile)", value = "```"..game.JobId.."```", inline = false},
+                {name = "Job ID (PC)", value = "```"..game.JobId.."```", inline = false},
+                {name = "🔗 Join Link", value = "[Click to Join]("..joiner..")", inline = false},
+                {name = "💻 Join Script (PC)", value = '```lua\ngame:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', "'..game.JobId..'", game.Players.LocalPlayer)\n```', inline = false}
+            },
+            footer = {text = "modified by sigma paster xynnn • "..os.date("%I:%M %p")}
+        }}
+    }
+
+    DoRequest({
+        Url = entry.url,
+        Method = "POST",
+        Headers = {["Content-Type"]="application/json"},
+        Body = HttpService:JSONEncode(payload)
+    })
 end
 
-startFinder()
+task.spawn(function()
+    local lastAttempts = 0
+    local lastT = os.clock()
+    while true do
+        local now = os.clock()
+        if now - lastT >= 1 then
+            local diff = HopperInfo.attemptsTotal - lastAttempts
+            local aps = diff / (now - lastT)
+            Attempts.Text = string.format("Attempts/s: %.1f  Total: %d", aps, HopperInfo.attemptsTotal)
+            lastAttempts = HopperInfo.attemptsTotal
+            lastT = now
+        end
+        Pages.Text = "Pages Scanned: "..tostring(HopperInfo.pages).."  Cursor: "..tostring(HopperInfo.lastCursor)
+        Candidates.Text = "Candidates: "..tostring(HopperInfo.candidates).."  Tried IDs: "..tostring(HopperInfo.triedIds)
+        LastResult.Text = "Last: "..tostring(HopperInfo.lastMsg)
+        Status.Text = "Status: "..(ScanComplete and "Ready" or "Scanning")
+        Meter.Text = "Q: "..tostring(CandidateQ.tail - CandidateQ.head + 1).."/"..tostring(CursorQ.tail - CandidateQ.head + 1)
+        task.wait(0.1)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if Title and Title.Text == "Scan Complete" then
+            TryServerHopParallel()
+            break
+        end
+        task.wait(0.05)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if os.clock() - HopperInfo.lastActivityT > IdleRejoinSec then
+            HopperInfo.lastMsg = "Watchdog Rejoin Triggered"
+            LastResult.Text = "Last: Watchdog Rejoin Triggered"
+            touch()
+            task.wait(1 + RNG:NextNumber(0,0.5))
+            local rejoinSuccess = false
+            for retry=1,2 do
+                pcall(function()
+                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                end)
+                if rejoinSuccess then break end
+                task.wait(1)
+            end
+            if not rejoinSuccess then
+                HopperInfo.lastMsg = "Watchdog Rejoin Failed"
+                LastResult.Text = "Last: Watchdog Rejoin Failed"
+                touch()
+            end
+            break
+        end
+        task.wait(1)
+    end
+end)
+
+local SentBrainrots = {}
+local list = GetBestBrainrots()
+for _, brain in ipairs(list) do
+    local key = brain.Key
+    if key and not SentBrainrots[key] then
+        SentBrainrots[key] = true
+        task.spawn(function() SendBrainrotWebhook(brain) end)
+    end
+end
