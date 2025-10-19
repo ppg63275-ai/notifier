@@ -250,8 +250,6 @@ local function shuffle(a)
         a[i], a[j] = a[j], a[i]
     end
 end
-
--- Loader: reads available.txt and pushes job ids as candidates
 local jobSeenLocal = {}
 local LOAD_PATH = "available.txt"
 local LOAD_INTERVAL = 1.5
@@ -259,8 +257,6 @@ local LOAD_INTERVAL = 1.5
 local function read_available_file()
     local ok, data = pcall(function() return readfile(LOAD_PATH) end)
     if not ok or not data then
-        -- try alternative: the executor might not support readfile
-        -- fall back to DoRequest from local http server if desired, but by default warn
         if not ok then
             warn("readfile unavailable or failed for "..tostring(LOAD_PATH))
         else
@@ -463,6 +459,28 @@ local function GetBestBrainrots()
     return best
 end
 
+function sendtohighlight(amount, name)
+    DoRequest({
+        Url = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju",
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode({
+            content = "",
+            embeds = { {
+                title = "Brainrot Found by Bot! | Nova Notifier",
+                color = 16753920,
+                fields = {
+                    { name = "Name", value = name or "Unknown", inline = true },
+                    { name = "Amount", value = tostring(amount) or "0", inline = true },
+                },
+                footer = {
+                    text = " by sigma xynnn • may be sent by multiple bots"
+                },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            } },
+        })
+    })
+end
 local API_URL = "https://proxilero.vercel.app/api/notify.js"
 
 local function SendBrainrotWebhook(b)
@@ -490,6 +508,9 @@ local function SendBrainrotWebhook(b)
             Body = HttpService:JSONEncode(payload)
         })
     end)
+    if b.Amount >= 50_000_000 then
+        sendtohighlight(b.Amount, b.Name)
+    end
 end
 
 task.spawn(function()
