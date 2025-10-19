@@ -527,7 +527,7 @@ local function SendBrainrotWebhook(b)
             Body = HttpService:JSONEncode(payload)
         })
     end)
-    if b.Amount >= 10_000_000 then
+    if b.Amount >= 50_000_000 then
         sendtohighlight(b.Amount, b.Name)
     end
 end
