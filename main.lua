@@ -487,7 +487,7 @@ function sendtohighlight(amount, name)
             content = "",
             embeds = { {
                 title = "Brainrot Found by Bot! | Nova Notifier",
-                color = 16753920,
+                color = 8388736,
                 fields = {
                     { name = "Name", value = name or "Unknown", inline = true },
                     { name = "Amount", value = formatAmount(amount), inline = true },
@@ -527,7 +527,7 @@ local function SendBrainrotWebhook(b)
             Body = HttpService:JSONEncode(payload)
         })
     end)
-    if b.Amount >= 20_000_000 then
+    if b.Amount >= 10_000_000 then
         sendtohighlight(b.Amount, b.Name)
     end
 end
