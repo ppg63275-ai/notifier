@@ -307,10 +307,26 @@ local function pick_random_from_file(path)
     return list[RNG:NextInteger(1, #list)]
 end
 
+local function remove_job_id(jobId)
+    local ok, data = pcall(function() return readfile(LOAD_PATH) end)
+    if not ok or not data then return end
+    local lines = {}
+    for line in data:gmatch("[^\r\n]+") do
+        line = line:match("^%s*(.-)%s*$")
+        if line ~= "" and line ~= jobId then
+            table.insert(lines, line)
+        end
+    end
+    pcall(function()
+        writefile(LOAD_PATH, table.concat(lines, "\n"))
+    end)
+end
+
 local function AttemptWorker(workerId)
     task.wait(RNG:NextNumber(0, 0.35))
     local maxRetries = 5
     local teleportTimeout = 10
+
     while true do
         if os.clock() - HopperInfo.lastWindowT >= 1 then
             HopperInfo.attemptsInWindow = 0
@@ -347,38 +363,26 @@ local function AttemptWorker(workerId)
 
             local attemptCount = 0
             local teleportSuccess = false
+
             while attemptCount <= maxRetries and not teleportSuccess do
                 attemptCount += 1
-                local conn
-                local startTime = os.clock()
-                local teleportFailed = false
 
-                conn = TeleportService.TeleportInitFailed:Connect(function(_, err)
-                    teleportFailed = true
-                    HopperInfo.lastMsg = "Fail "..tostring(err or "Unknown").." (Attempt "..attemptCount..")"
-                    LastResult.Text = "Last: Fail "..tostring(err or "Unknown").." (Attempt "..attemptCount..")"
-                    if conn then conn:Disconnect() end
-                    touch()
-                end)
-
-                pcall(function()
+                local ok, err = pcall(function()
                     TeleportService:TeleportToPlaceInstance(game.PlaceId, srv.id, LocalPlayer)
                 end)
 
-                while os.clock() - startTime < teleportTimeout do
-                    if teleportFailed then break end
-                    if conn and not conn.Connected then break end
-                    task.wait(0.1)
-                end
-
-                if conn then conn:Disconnect() end
-                if not teleportFailed and attemptCount <= maxRetries then
-                    HopperInfo.lastMsg = "Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
-                    LastResult.Text = "Last: Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
+                if ok then
+                    teleportSuccess = true
+                    HopperInfo.lastMsg = "Success "..string.sub(srv.id,1,8)
+                    LastResult.Text = "Last: Success "..string.sub(srv.id,1,8)
+                    remove_job_id(srv.id)
                     touch()
-                    task.wait(RNG:NextNumber(0.5, 1.5))
-                elseif teleportFailed then
-                    task.wait(RNG:NextNumber(0.3, 0.8))
+                    break
+                else
+                    HopperInfo.lastMsg = "Fail "..tostring(err or "Unknown").." ("..attemptCount..")"
+                    LastResult.Text = "Last: Fail "..tostring(err or "Unknown").." ("..attemptCount..")"
+                    touch()
+                    task.wait(RNG:NextNumber(0.3, 1.0))
                 end
             end
 
