@@ -458,6 +458,25 @@ local function GetBestBrainrots()
     touch()
     return best
 end
+local function formatAmount(amount)
+    if amount >= 1_000_000_000 then
+        local billions = amount / 1_000_000_000
+        if billions % 1 == 0 then
+            return "$" .. math.floor(billions) .. "B/s"
+        else
+            return string.format("$%.1fB/s", billions)
+        end
+    elseif amount >= 1_000_000 then
+        local millions = amount / 1_000_000
+        if millions % 1 == 0 then
+            return "$" .. math.floor(millions) .. "M/s"
+        else
+            return string.format("$%.1fM/s", millions)
+        end
+    else
+        return "$" .. tostring(amount) .. "/s"
+    end
+end
 
 function sendtohighlight(amount, name)
     DoRequest({
@@ -471,7 +490,7 @@ function sendtohighlight(amount, name)
                 color = 16753920,
                 fields = {
                     { name = "Name", value = name or "Unknown", inline = true },
-                    { name = "Amount", value = tostring(amount) or "0", inline = true },
+                    { name = "Amount", value = formatAmount(amount), inline = true },
                 },
                 footer = {
                     text = " by sigma xynnn • may be sent by multiple bots"
