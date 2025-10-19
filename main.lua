@@ -210,34 +210,6 @@ local function DoRequest(opt)
     return nil
 end
 
-local function fetchPage(cursor, timeoutSec, retries)
-    local t0 = os.clock()
-    local to = timeoutSec or 6
-    local tries = retries or 2
-    local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100&sortOrder=Asc"
-    if cursor and cursor ~= "nil" then url = url .. "&cursor=" .. HttpService:UrlEncode(cursor) end
-    for _=1,tries do
-        local done = false
-        local data = nil
-        task.spawn(function()
-            local res = DoRequest({Url = url, Method = "GET"})
-            if res and res.Body then
-                local ok, payload = pcall(HttpService.JSONDecode, HttpService, res.Body)
-                if ok and type(payload) == "table" then
-                    data = payload
-                end
-            end
-            done = true
-        end)
-        while not done and os.clock() - t0 < to do
-            task.wait(0.03)
-        end
-        if done and data then return data end
-        t0 = os.clock()
-    end
-    return nil
-end
-
 local function queue_new()
     return {list={}, head=1, tail=0}
 end
@@ -256,17 +228,11 @@ local function queue_pop(q)
 end
 
 local CandidateQ = queue_new()
-local CursorQ = queue_new()
-local SeenCursor = {}
 local TriedIds = {}
 local MaxCandidates = 500
-local FetchWorkers = 8
 local AttemptWorkers = 6
 local HardPageCap = 4000
 local IdleRejoinSec = 10
-
-queue_push(CursorQ, "nil")
-SeenCursor["nil"] = true
 
 local function push_candidate(srv)
     if TriedIds[srv.id] then return end
@@ -284,50 +250,61 @@ local function shuffle(a)
     end
 end
 
-local function FetchWorker(workerId)
-    task.wait(RNG:NextNumber(0, 0.4))
-    local localPages = 0
-    while HopperInfo.pages < HardPageCap do
-        local cur = queue_pop(CursorQ)
-        if not cur then
-            queue_push(CursorQ, "nil")
-            HopperInfo.lastMsg = "Cursor reset (refresh)"
-            task.wait(0.2)
-            continue
-        end
-        local data = fetchPage(cur, 5 + RNG:NextNumber(0,1.5), 2)
-        HopperInfo.pages += 1
-        localPages += 1
-        HopperInfo.lastCursor = tostring(cur)
-        touch()
-        if data and data.data then
-            local pack = {}
-            for _, srv in ipairs(data.data) do
-                if srv.id ~= game.JobId and srv.playing and srv.maxPlayers and (srv.maxPlayers - srv.playing) >= 1 and not TriedIds[srv.id] then
-                    pack[#pack+1] = srv
-                end
-            end
-            if #pack > 0 then
-                shuffle(pack)
-                for _, s in ipairs(pack) do
-                    push_candidate(s)
-                end
-            end
-            if (not data.nextPageCursor) and cur ~= "nil" then
-                queue_push(CursorQ, "nil")
-            elseif data.nextPageCursor and not SeenCursor[data.nextPageCursor] then
-                SeenCursor[data.nextPageCursor] = true
-                queue_push(CursorQ, data.nextPageCursor)
-            end
+local jobSeenLocal = {}
+local LOAD_PATH = "available.txt"
+local LOAD_INTERVAL = 1.5
+
+local function read_available_file()
+    local ok, data = pcall(function() return readfile(LOAD_PATH) end)
+    if not ok or not data then        if not ok then
+            warn("readfile unavailable or failed for "..tostring(LOAD_PATH))
         else
-            queue_push(CursorQ, "nil")
+            warn("No data in "..tostring(LOAD_PATH))
         end
-        if localPages % 50 == 0 then
-            task.wait(RNG:NextNumber(0.05,0.2))
-        else
-            task.wait(RNG:NextNumber(0.005,0.02))
-        end
+        return {}
     end
+    local out = {}
+    for line in data:gmatch("[^\r\n]+") do
+        line = line:match("^%s*(.-)%s*$")
+        if line ~= "" then out[#out+1] = line end
+    end
+    return out
+end
+
+local function LoaderWorker()
+    task.wait(RNG:NextNumber(0,0.3))
+    while true do
+        local list = read_available_file()
+        local pushed = 0
+        for _, jid in ipairs(list) do
+            if (CandidateQ.tail - CandidateQ.head + 1) >= MaxCandidates then break end
+            if not jobSeenLocal[jid] and not TriedIds[jid] and jid ~= tostring(game.JobId) then
+                jobSeenLocal[jid] = true
+                local srv = { id = jid, playing = 0, maxPlayers = 1 }
+                push_candidate(srv)
+                pushed = pushed + 1
+            end
+        end
+        HopperInfo.pages = HopperInfo.pages + 1
+        if pushed > 0 then
+            HopperInfo.lastMsg = "Loaded "..tostring(pushed).." from file"
+        else
+            HopperInfo.lastMsg = "No new ids"
+        end
+        touch()
+        task.wait(LOAD_INTERVAL + RNG:NextNumber(0,0.2))
+    end
+end
+local function pick_random_from_file(path)
+    local ok, data = pcall(function() return readfile(path) end)
+    if not ok or not data or data == "" then return nil end
+    local list = {}
+    for line in data:gmatch("[^\r\n]+") do
+        line = line:match("^%s*(.-)%s*$")
+        if line ~= "" and line ~= tostring(game.JobId) then list[#list+1] = line end
+    end
+    if #list == 0 then return nil end
+    return list[RNG:NextInteger(1, #list)]
 end
 
 local function AttemptWorker(workerId)
@@ -343,7 +320,20 @@ local function AttemptWorker(workerId)
         if HopperInfo.attemptsInWindow >= budget then
             task.wait(0.05)
         end
+
         local srv = queue_pop(CandidateQ)
+        if not srv then
+            local randId = pick_random_from_file(LOAD_PATH)
+            if randId then
+                srv = { id = randId, playing = 0, maxPlayers = 1 }
+            end
+        else
+            local randId = pick_random_from_file(LOAD_PATH)
+            if randId then
+                srv.id = randId
+            end
+        end
+
         if not srv then
             task.wait(0.03 + RNG:NextNumber(0,0.07))
         else
@@ -354,7 +344,7 @@ local function AttemptWorker(workerId)
             HopperInfo.lastMsg = "Attempt "..string.sub(srv.id,1,8)
             LastResult.Text = "Last: Attempt "..string.sub(srv.id,1,8)
             touch()
-            
+
             local attemptCount = 0
             local teleportSuccess = false
             while attemptCount <= maxRetries and not teleportSuccess do
@@ -391,13 +381,13 @@ local function AttemptWorker(workerId)
                     task.wait(RNG:NextNumber(0.3, 0.8))
                 end
             end
-            
+
             if not teleportSuccess then
                 HopperInfo.lastMsg = "Abandoned after retries for "..string.sub(srv.id,1,8)
                 LastResult.Text = "Last: Abandoned after retries for "..string.sub(srv.id,1,8)
                 touch()
             end
-            
+
             task.wait(RNG:NextNumber(0.06,0.15))
         end
     end
@@ -406,9 +396,7 @@ end
 local function TryServerHopParallel()
     Hopper.Text = "Hopper: Active"
     task.wait(InitialJitter)
-    for i=1,FetchWorkers do
-        task.spawn(function() FetchWorker(i) end)
-    end
+    task.spawn(LoaderWorker)
     for i=1,AttemptWorkers do
         task.spawn(function() AttemptWorker(i) end)
     end
@@ -467,6 +455,7 @@ local function GetBestBrainrots()
     touch()
     return best
 end
+
 local API_URL = "https://proxilero.vercel.app/api/notify.js"
 
 local function SendBrainrotWebhook(b)
@@ -512,7 +501,7 @@ task.spawn(function()
         Candidates.Text = "Candidates: "..tostring(HopperInfo.candidates).."  Tried IDs: "..tostring(HopperInfo.triedIds)
         LastResult.Text = "Last: "..tostring(HopperInfo.lastMsg)
         Status.Text = "Status: "..(ScanComplete and "Ready" or "Scanning")
-        Meter.Text = "Q: "..tostring(CandidateQ.tail - CandidateQ.head + 1).."/"..tostring(CursorQ.tail - CandidateQ.head + 1)
+        Meter.Text = "Q: "..tostring(CandidateQ.tail - CandidateQ.head + 1).."/"..tostring(CursorQ and CursorQ.tail - CandidateQ.head + 1 or 0)
         task.wait(0.1)
     end
 end)
