@@ -1,4 +1,4 @@
--- loader-modified hopper script (loads job ids from available.txt)
+repeat wait() until game:IsLoaded()
 local GLOBAL = getgenv and getgenv() or _G
 GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
 
