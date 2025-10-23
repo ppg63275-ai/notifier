@@ -2,7 +2,7 @@ repeat wait() until game:IsLoaded()
 local GLOBAL = getgenv and getgenv() or _G
 GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
 
-wait(15)
+task.wait(3)
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
