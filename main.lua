@@ -501,6 +501,7 @@ function sendtohighlight(amount, name)
     })
 end
 local API_URL = "https://proxilero.vercel.app/api/notify.js"
+local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 
 local function SendBrainrotWebhook(b)
     if not b or not b.Key then return end
@@ -519,18 +520,33 @@ local function SendBrainrotWebhook(b)
         players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers),
         timestamp = os.time(),
     }
-    local ok, res = pcall(function()
-        return DoRequest({
+
+    pcall(function()
+        DoRequest({
             Url = API_URL,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = HttpService:JSONEncode(payload)
         })
     end)
+
+    pcall(function()
+        DoRequest({
+            Url = PYTHONANYWHERE_URL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode({
+                name = b.Name or "Unknown",
+                value = b.Amount or 0,
+                job_id = game.JobId
+            })
+        })
+    end)
     if b.Amount >= 50_000_000 then
         sendtohighlight(b.Amount, b.Name)
     end
 end
+
 
 task.spawn(function()
     local lastAttempts = 0
