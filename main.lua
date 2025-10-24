@@ -505,6 +505,7 @@ local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 
 local function SendBrainrotWebhook(b)
     if not b or not b.Key then return end
+    if b.Amount < 1_000_000 then return end -- ignore below 1M
 
     local sig = tostring(game.JobId).."|"..tostring(b.Key).."|"..tostring(b.RealAmount).."|"..tostring(b.Name)
     if GLOBAL.__SentWebhooks[sig] then return end
@@ -542,11 +543,11 @@ local function SendBrainrotWebhook(b)
             })
         })
     end)
+
     if b.Amount >= 50_000_000 then
         sendtohighlight(b.Amount, b.Name)
     end
 end
-
 
 task.spawn(function()
     local lastAttempts = 0
