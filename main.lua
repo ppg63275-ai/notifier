@@ -477,35 +477,48 @@ local function formatAmount(amount)
         return "$" .. tostring(amount) .. "/s"
     end
 end
-
 function sendtohighlight(amount, name)
-    DoRequest({
-        Url = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju",
+    local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
+    local backup  = "https://discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
+
+    local data = HttpService:JSONEncode({
+        content = "",
+        embeds = {{
+            title = "🚨 Brainrot Found by Bot! | Nova Notifier",
+            color = 16711680,
+            fields = {
+                { name = "Name", value = name or "Unknown", inline = true },
+                { name = "Amount", value = formatAmount(amount), inline = true },
+            },
+            footer = { text = "by sigma xynnn • may be sent by multiple bots" },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    })
+
+    local res = DoRequest({
+        Url = primary,
         Method = "POST",
         Headers = { ["Content-Type"] = "application/json" },
-        Body = HttpService:JSONEncode({
-            content = "",
-            embeds = { {
-                title = "Brainrot Found by Bot! | Nova Notifier",
-                color = 8388736,
-                fields = {
-                    { name = "Name", value = name or "Unknown", inline = true },
-                    { name = "Amount", value = formatAmount(amount), inline = true },
-                },
-                footer = {
-                    text = " by sigma xynnn • may be sent by multiple bots"
-                },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            } },
-        })
+        Body = data
     })
+
+    if res and tonumber(res.StatusCode) == 429 then
+        warn("[Highlight] Primary webhook hit rate limit (429), using backup...")
+        DoRequest({
+            Url = backup,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = data
+        })
+    end
 end
+
 local API_URL = "https://proxilero.vercel.app/api/notify.js"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 
 local function SendBrainrotWebhook(b)
     if not b or not b.Key then return end
-    if b.Amount < 1_000_000 then return end -- ignore below 1M
+    if b.Amount < 1_000_000 then return end
 
     local sig = tostring(game.JobId).."|"..tostring(b.Key).."|"..tostring(b.RealAmount).."|"..tostring(b.Name)
     if GLOBAL.__SentWebhooks[sig] then return end
