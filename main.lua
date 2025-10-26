@@ -1,8 +1,7 @@
-repeat wait() until game:IsLoaded()
+repeat until game:IsLoaded()
 local GLOBAL = getgenv and getgenv() or _G
-GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
-
 task.wait(3)
+GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -14,7 +13,11 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Plots = cloneref(workspace:WaitForChild("Plots", 9e9))
 ReplicatedStorage:WaitForChild("Controllers", 9e9)
 local PlotController = require(ReplicatedStorage.Controllers.PlotController)
-
+local BACKEND_URL = "http://127.0.0.1:5000/"
+local TP_MIN_GAP_S     = 1
+local TP_JITTER_MIN_S  = 0.5
+local TP_JITTER_MAX_S  = 0.5
+local TP_STUCK_TIMEOUT = 12.0
 local PlayerPlot
 repeat
     PlayerPlot = PlotController.GetMyPlot()
@@ -211,200 +214,6 @@ local function DoRequest(opt)
     return nil
 end
 
-local function queue_new()
-    return {list={}, head=1, tail=0}
-end
-
-local function queue_push(q, v)
-    q.tail += 1
-    q.list[q.tail] = v
-end
-
-local function queue_pop(q)
-    if q.head > q.tail then return nil end
-    local v = q.list[q.head]
-    q.list[q.head] = nil
-    q.head += 1
-    return v
-end
-
-local CandidateQ = queue_new()
-local TriedIds = {}
-local MaxCandidates = 500
-local AttemptWorkers = 6
-local HardPageCap = 4000
-local IdleRejoinSec = 10
-
-local function push_candidate(srv)
-    if TriedIds[srv.id] then return end
-    TriedIds[srv.id] = true
-    if (CandidateQ.tail - CandidateQ.head + 1) < MaxCandidates then
-        queue_push(CandidateQ, srv)
-        HopperInfo.candidates = CandidateQ.tail - CandidateQ.head + 1
-    end
-end
-
-local function shuffle(a)
-    for i = #a, 2, -1 do
-        local j = RNG:NextInteger(1, i)
-        a[i], a[j] = a[j], a[i]
-    end
-end
-local jobSeenLocal = {}
-local LOAD_PATH = "available.txt"
-local LOAD_INTERVAL = 1.5
-
-local function read_available_file()
-    local ok, data = pcall(function() return readfile(LOAD_PATH) end)
-    if not ok or not data then
-        if not ok then
-            warn("readfile unavailable or failed for "..tostring(LOAD_PATH))
-        else
-            warn("No data in "..tostring(LOAD_PATH))
-        end
-        return {}
-    end
-    local out = {}
-    for line in data:gmatch("[^\r\n]+") do
-        line = line:match("^%s*(.-)%s*$")
-        if line ~= "" then out[#out+1] = line end
-    end
-    return out
-end
-
-local function LoaderWorker()
-    task.wait(RNG:NextNumber(0,0.3))
-    while true do
-        local list = read_available_file()
-        local pushed = 0
-        for _, jid in ipairs(list) do
-            if (CandidateQ.tail - CandidateQ.head + 1) >= MaxCandidates then break end
-            if not jobSeenLocal[jid] and not TriedIds[jid] and jid ~= tostring(game.JobId) then
-                jobSeenLocal[jid] = true
-                local srv = { id = jid, playing = 0, maxPlayers = 1 }
-                push_candidate(srv)
-                pushed = pushed + 1
-            end
-        end
-        HopperInfo.pages = HopperInfo.pages + 1
-        if pushed > 0 then
-            HopperInfo.lastMsg = "Loaded "..tostring(pushed).." from file"
-        else
-            HopperInfo.lastMsg = "No new ids"
-        end
-        touch()
-        task.wait(LOAD_INTERVAL + RNG:NextNumber(0,0.2))
-    end
-end
-local function pick_random_from_file(path)
-    local ok, data = pcall(function() return readfile(path) end)
-    if not ok or not data or data == "" then return nil end
-    local list = {}
-    for line in data:gmatch("[^\r\n]+") do
-        line = line:match("^%s*(.-)%s*$")
-        if line ~= "" and line ~= tostring(game.JobId) then list[#list+1] = line end
-    end
-    if #list == 0 then return nil end
-    return list[RNG:NextInteger(1, #list)]
-end
-
-local function AttemptWorker(workerId)
-    task.wait(RNG:NextNumber(0, 0.35))
-    local maxRetries = 5
-    local teleportTimeout = 10
-    while true do
-        if os.clock() - HopperInfo.lastWindowT >= 1 then
-            HopperInfo.attemptsInWindow = 0
-            HopperInfo.lastWindowT = os.clock()
-        end
-        local budget = 10
-        if HopperInfo.attemptsInWindow >= budget then
-            task.wait(0.05)
-        end
-
-        local srv = queue_pop(CandidateQ)
-        -- If we didn't get a queued srv, still try to pick from file
-        if not srv then
-            local randId = pick_random_from_file(LOAD_PATH)
-            if randId then
-                srv = { id = randId, playing = 0, maxPlayers = 1 }
-            end
-        else
-            -- attempt to replace queued srv.id with a random file id to diversify joins
-            local randId = pick_random_from_file(LOAD_PATH)
-            if randId then
-                srv.id = randId
-            end
-        end
-
-        if not srv then
-            task.wait(0.03 + RNG:NextNumber(0,0.07))
-        else
-            HopperInfo.candidates = CandidateQ.tail - CandidateQ.head + 1
-            HopperInfo.triedIds += 1
-            HopperInfo.attemptsTotal += 1
-            HopperInfo.attemptsInWindow += 1
-            HopperInfo.lastMsg = "Attempt "..string.sub(srv.id,1,8)
-            LastResult.Text = "Last: Attempt "..string.sub(srv.id,1,8)
-            touch()
-
-            local attemptCount = 0
-            local teleportSuccess = false
-            while attemptCount <= maxRetries and not teleportSuccess do
-                attemptCount += 1
-                local conn
-                local startTime = os.clock()
-                local teleportFailed = false
-
-                conn = TeleportService.TeleportInitFailed:Connect(function(_, err)
-                    teleportFailed = true
-                    HopperInfo.lastMsg = "Fail "..tostring(err or "Unknown").." (Attempt "..attemptCount..")"
-                    LastResult.Text = "Last: Fail "..tostring(err or "Unknown").." (Attempt "..attemptCount..")"
-                    if conn then conn:Disconnect() end
-                    touch()
-                end)
-
-                pcall(function()
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, srv.id, LocalPlayer)
-                end)
-
-                while os.clock() - startTime < teleportTimeout do
-                    if teleportFailed then break end
-                    if conn and not conn.Connected then break end
-                    task.wait(0.1)
-                end
-
-                if conn then conn:Disconnect() end
-                if not teleportFailed and attemptCount <= maxRetries then
-                    HopperInfo.lastMsg = "Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
-                    LastResult.Text = "Last: Timeout/Retry "..attemptCount.." for "..string.sub(srv.id,1,8)
-                    touch()
-                    task.wait(RNG:NextNumber(0.5, 1.5))
-                elseif teleportFailed then
-                    task.wait(RNG:NextNumber(0.3, 0.8))
-                end
-            end
-
-            if not teleportSuccess then
-                HopperInfo.lastMsg = "Abandoned after retries for "..string.sub(srv.id,1,8)
-                LastResult.Text = "Last: Abandoned after retries for "..string.sub(srv.id,1,8)
-                touch()
-            end
-
-            task.wait(RNG:NextNumber(0.06,0.15))
-        end
-    end
-end
-
-local function TryServerHopParallel()
-    Hopper.Text = "Hopper: Active"
-    task.wait(InitialJitter)
-    task.spawn(LoaderWorker)
-    for i=1,AttemptWorkers do
-        task.spawn(function() AttemptWorker(i) end)
-    end
-end
-
 local function GetBestBrainrots()
     local best, seen = {}, {}
     local list = {}
@@ -458,6 +267,7 @@ local function GetBestBrainrots()
     touch()
     return best
 end
+
 local function formatAmount(amount)
     if amount >= 1_000_000_000 then
         local billions = amount / 1_000_000_000
@@ -477,6 +287,7 @@ local function formatAmount(amount)
         return "$" .. tostring(amount) .. "/s"
     end
 end
+
 function sendtohighlight(amount, name)
     local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
     local backup  = "https://discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
@@ -562,6 +373,121 @@ local function SendBrainrotWebhook(b)
     end
 end
 
+local function postJSON(path, tbl)
+    local url  = BACKEND_URL .. path
+    local body = HttpService:JSONEncode(tbl or {})
+    if request then
+        local ok, resp = pcall(function()
+            return request({ Url=url, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
+        end)
+        if not ok or not resp or not (resp.Body or resp.body) then return nil end
+        local ok2, data = pcall(function() return HttpService:JSONDecode(resp.Body or resp.body) end)
+        if not ok2 then return nil end
+        return data
+    else
+        local ok, raw = pcall(function()
+            return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson)
+        end)
+        if not ok then return nil end
+        local ok2, data = pcall(function() return HttpService:JSONDecode(raw) end)
+        if not ok2 then return nil end
+        return data
+    end
+end
+local MIN_PLAYERS = 6
+-- /next: minPlayers + JobID
+local function nextServer()
+    local data = postJSON("next", {
+        placeId    = game.PlaceId,
+        currentJob = game.JobId,
+        minPlayers = MIN_PLAYERS,
+    })
+    if type(data)=="table" and data.ok and data.id then
+        return tostring(data.id)
+    end
+    -- бэкофф, если ничего не получено
+    task.wait(0.2)
+    return nil
+end
+
+local function releaseKey(serverId)
+    if not serverId then return end
+    pcall(function() postJSON("release", { placeId = game.PlaceId, key = tostring(serverId) }) end)
+end
+
+-- Телепорт: повтор через бэкенд + джиттер + кулдавн + ватчдог
+local lastAttemptJobId, lastFailAt = nil, 0
+local lastTeleportAt = 0
+
+TeleportService.TeleportInitFailed:Connect(function()
+    lastFailAt = os.clock()
+    if lastAttemptJobId then task.spawn(releaseKey, lastAttemptJobId) end
+    task.wait(0.6)
+    local nextId = nextServer()
+    if nextId then tryTeleportTo(nextId) end
+end)
+
+local function jitter()
+    local j = math.random(math.floor(TP_JITTER_MIN_S*1000), math.floor(TP_JITTER_MAX_S*1000))/1000
+    task.wait(j)
+end
+
+function tryTeleportTo(jobId)
+    local now = os.clock()
+    local gap = now - (lastTeleportAt or 0)
+    if gap < TP_MIN_GAP_S then task.wait(TP_MIN_GAP_S - gap) end
+    jitter()
+
+    lastAttemptJobId = tostring(jobId)
+    local ok = pcall(function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, lastAttemptJobId, LocalPlayer)
+    end)
+    lastTeleportAt = os.clock()
+
+    if not ok then
+        task.spawn(releaseKey, lastAttemptJobId)
+        return false
+    end
+
+    -- ватчдог: если телепорт завис, берёт следующий
+    task.spawn(function()
+        local start = os.clock()
+        task.wait(TP_STUCK_TIMEOUT)
+        if lastFailAt < start then
+            local nid = nextServer()
+            if nid then tryTeleportTo(nid) end
+        end
+    end)
+    return true
+end
+
+-- /JOINED: Успешный вход (Бэкенд блокирует на 1 час)
+shared.__QUESAID_LAST_MARKED__ = shared.__QUESAID_LAST_MARKED__ or nil
+local function markJoinedOnce()
+    local jid = tostring(game.JobId)
+    if shared.__QUESAID_LAST_MARKED__ == jid then return end
+    shared.__QUESAID_LAST_MARKED__ = jid
+    task.delay(2.0, function()
+        pcall(function()
+            postJSON("joined", { placeId = game.PlaceId, serverId = jid })
+        end)
+    end)
+end
+
+task.spawn(function()
+    if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
+    markJoinedOnce()
+end)
+pcall(function() Players.LocalPlayer.CharacterAdded:Connect(markJoinedOnce) end)
+task.spawn(function()
+    local last = nil
+    while true do
+        local jid = tostring(game.JobId)
+        if jid ~= last then last = jid; markJoinedOnce() end
+        task.wait(5)
+    end
+end)
+
 task.spawn(function()
     local lastAttempts = 0
     local lastT = os.clock()
@@ -578,44 +504,18 @@ task.spawn(function()
         Candidates.Text = "Candidates: "..tostring(HopperInfo.candidates).."  Tried IDs: "..tostring(HopperInfo.triedIds)
         LastResult.Text = "Last: "..tostring(HopperInfo.lastMsg)
         Status.Text = "Status: "..(ScanComplete and "Ready" or "Scanning")
-        Meter.Text = "Q: "..tostring(CandidateQ.tail - CandidateQ.head + 1).."/"..tostring(CursorQ and CursorQ.tail - CandidateQ.head + 1 or 0)
+        Meter.Text = "Q: 0/0"
         task.wait(0.1)
     end
 end)
-
 task.spawn(function()
+    local jobids = nextServer()
     while true do
         if Title and Title.Text == "Scan Complete" then
-            TryServerHopParallel()
+            tryTeleportTo(jobids)
             break
         end
         task.wait(0.05)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if os.clock() - HopperInfo.lastActivityT > IdleRejoinSec then
-            HopperInfo.lastMsg = "Watchdog Rejoin Triggered"
-            LastResult.Text = "Last: Watchdog Rejoin Triggered"
-            touch()
-            task.wait(1 + RNG:NextNumber(0,0.5))
-            local rejoinSuccess = false
-            for retry=1,5 do
-                pcall(function()
-                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                end)
-                if rejoinSuccess then break end
-                task.wait(1)
-            end
-            if not rejoinSuccess then
-                HopperInfo.lastMsg = "Watchdog Rejoin Failed"
-                LastResult.Text = "Last: Watchdog Rejoin Failed"
-                touch()
-            end
-            break
-        end
-        task.wait(1)
     end
 end)
 
