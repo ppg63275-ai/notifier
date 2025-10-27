@@ -345,16 +345,9 @@ local function SendBrainrotWebhook(b)
         players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers),
         timestamp = os.time(),
     }
-
-    pcall(function()
-        DoRequest({
-            Url = API_URL,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = HttpService:JSONEncode(payload)
-        })
-    end)
-
+    if b.Amount >= 50_000_000 then
+        sendtohighlight(b.Amount, b.Name)
+    end
     pcall(function()
         DoRequest({
             Url = PYTHONANYWHERE_URL,
@@ -367,10 +360,15 @@ local function SendBrainrotWebhook(b)
             })
         })
     end)
+    pcall(function()
+        DoRequest({
+            Url = API_URL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
 
-    if b.Amount >= 50_000_000 then
-        sendtohighlight(b.Amount, b.Name)
-    end
 end
 
 local function postJSON(path, tbl)
