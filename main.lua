@@ -123,10 +123,60 @@ function sendtohighlight(amount, name)
     end
 end
 
-function SendBrainrotWebhook(b)
-    print("[BR-SEND]", b.Key, b.Amount, nowts())
-    if b.Amount >= 50_000_000 then sendtohighlight(b.Amount, b.Name) end
-    DoRequest({ Url = "https://proxilero.vercel.app/api/notify.js", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode(b) })
+local API_URL = "https://proxilero.vercel.app/api/notify.js"
+local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
+
+local GLOBAL = getgenv()
+GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
+
+local function SendBrainrotWebhook(b)
+    if not b or not b.Key then return end
+    if b.Amount < 1_000_000 then return end
+
+    local sig = tostring(game.JobId).."|"..tostring(b.Key).."|"..tostring(b.RealAmount).."|"..tostring(b.Name)
+    if GLOBAL.__SentWebhooks[sig] then return end
+    GLOBAL.__SentWebhooks[sig] = true
+
+    local payload = {
+        id = sig,
+        name = b.Name or "Unknown",
+        amount = b.Amount or 0,
+        realAmount = b.RealAmount or "",
+        jobId = game.JobId,
+        placeId = game.PlaceId,
+        players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers),
+        timestamp = os.time(),
+    }
+
+    coroutine.wrap(function()
+        pcall(function()
+            DoRequest({
+                Url = API_URL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(payload)
+            })
+        end)
+    end)()
+
+    coroutine.wrap(function()
+        pcall(function()
+            DoRequest({
+                Url = PYTHONANYWHERE_URL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({
+                    name = b.Name or "Unknown",
+                    value = b.Amount or 0,
+                    job_id = game.JobId
+                })
+            })
+        end)
+    end)()
+
+    if b.Amount >= 50_000_000 then
+        sendtohighlight(b.Amount, b.Name)
+    end
 end
 
 local BASE_URL = "http://127.0.0.1:5000"
