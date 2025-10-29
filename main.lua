@@ -126,7 +126,7 @@ end
 local API_URL = "https://proxilero.vercel.app/api/notify.js"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 
-local GLOBAL = getgenv()
+local GLOBAL = getgenv and getgenv() or _G
 GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
 
 local function SendBrainrotWebhook(b)
