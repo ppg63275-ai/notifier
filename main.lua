@@ -112,7 +112,7 @@ function sendtohighlight(amount, name)
                 { name = "Name", value = name or "Unknown", inline = true },
                 { name = "Amount", value = formatAmount(amount), inline = true },
             },
-            footer = { text = "nova multi-bot detection safe" },
+            footer = { text = "Coded by Xynnn 至" },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     })
