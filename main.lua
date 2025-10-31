@@ -8,7 +8,6 @@ local GLOBAL = getgenv and getgenv() or _G
 local function nowts() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
 
 local function DoRequest(opt)
-    print("[HTTP-REQ]", opt.Url, opt.Method, nowts())
     local function _safe_call(fn, arg)
         local ok, res = pcall(fn, arg)
         if ok and res then return res end
@@ -16,25 +15,24 @@ local function DoRequest(opt)
     end
     if syn and syn.request then
         local res = _safe_call(syn.request, opt)
-        if res then print("[HTTP-RSP] syn", res.StatusCode, nowts()) return res end
+        if res then return res end
     end
     if request then
         local res = _safe_call(request, opt)
-        if res then print("[HTTP-RSP] request", res.StatusCode, nowts()) return res end
+        if res then return res end
     end
     if http_request then
         local res = _safe_call(http_request, opt)
-        if res then print("[HTTP-RSP] http_request", res.StatusCode, nowts()) return res end
+        if res then return res end
     end
     if http and http.request then
         local res = _safe_call(http.request, opt)
-        if res then print("[HTTP-RSP] http.request", res.StatusCode, nowts()) return res end
+        if res then return res end
     end
     if type(opt) == "table" and opt.Url and opt.Method == "GET" then
         local ok, r = pcall(function() return {Body = HttpService:GetAsync(opt.Url), StatusCode = 200} end)
-        if ok and r then print("[HTTP-RSP] fallback", r.StatusCode, nowts()) return r end
+        if ok and r then return r end
     end
-    print("[HTTP-ERR] no method", nowts())
     return nil
 end
 
@@ -48,12 +46,9 @@ local function toNumber(str)
 end
 
 local function GetBestBrainrots()
-    print("[SCAN-START]", nowts())
     local best, seen = {}, {}
     local list = {}
     for _, p in ipairs(Plots:GetChildren()) do table.insert(list, p) end
-    local total = #list
-    local done = 0
     for _, plot in ipairs(list) do
         for _, v in ipairs(plot:GetDescendants()) do
             if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
@@ -75,15 +70,12 @@ local function GetBestBrainrots()
                     if not seen[key] then
                         seen[key] = true
                         table.insert(best, {Name = disp, Amount = amt, RealAmount = raw, Key = key})
-                        print("[SCAN-FIND]", disp, raw, amt, key, nowts())
                     end
                 end
             end
         end
-        done = done + 1
     end
     table.sort(best, function(a,b) return a.Amount > b.Amount end)
-    print("[SCAN-END]", #best, nowts())
     return best
 end
 
@@ -100,7 +92,6 @@ local function formatAmount(amount)
 end
 
 function sendtohighlight(amount, name)
-    print("[HL-SEND]", amount, name, nowts())
     local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
     local backup  = "https:/ /discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
     local data = HttpService:JSONEncode({
@@ -118,14 +109,12 @@ function sendtohighlight(amount, name)
     })
     local r = DoRequest({ Url = primary, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     if r and tonumber(r.StatusCode) == 429 then
-        print("[HL-RATE-LIMIT]", nowts())
         DoRequest({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     end
 end
 
 local API_URL = "https://proxilero.vercel.app/api/notify.js"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
-
 local GLOBAL = getgenv and getgenv() or _G
 GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
 
@@ -192,27 +181,18 @@ local function GetNextJobId()
         })
     })
     if not res then return nil end
-
-    local ok, data = pcall(function()
-        return HttpService:JSONDecode(res.Body)
-    end)
+    local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
     if ok and data and data.job then
-        print("[API-NEXT]", data.job, nowts())
         return tostring(data.job)
     end
-
-
-    print("[API-NEXT-NIL]", nowts())
     return nil
 end
 
 local function ReleaseJobId(jobId)
-    print("[API-REL]", jobId, nowts())
     DoRequest({ Url = BASE_URL.."/release", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({ jobId = jobId }) })
 end
 
-local function JoinedJobId(jobId)   
-    print("[API-JOIN]", jobId, nowts())
+local function JoinedJobId(jobId)
     DoRequest({ Url = BASE_URL.."/joined", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({ jobId = jobId }) })
 end
 
@@ -229,17 +209,13 @@ local TP_JITTER_MAX_S = 0.5
 local TP_STUCK_TIMEOUT = 12.0
 
 local function tryTeleportTo(jobId)
-    print("[TP] Attempting:", jobId, nowts())
     local ok, res = pcall(function()
         return TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId)
     end)
-    if ok then print("[TP] Teleport started", nowts()) return true end
-    warn("[TP-FAIL]", res, nowts())
-    return false
+    return ok
 end
 
 TeleportService.TeleportInitFailed:Connect(function()
-    print("[TP-FAIL-EVENT]", nowts())
     lastFailAt = os.clock()
     if lastAttemptJobId then ReleaseJobId(lastAttemptJobId) end
     task.wait(0.6)
@@ -253,10 +229,10 @@ local function markJoinedOnce()
     if shared.__QUESAID_LAST_MARKED__ == jid then return end
     shared.__QUESAID_LAST_MARKED__ = jid
     task.delay(2, function()
-        print("[JOIN-MARK]", jid, nowts())
         DoRequest({ Url = BASE_URL.."/joined", Method = "POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({ placeId=game.PlaceId, serverId=jid }) })
     end)
 end
+
 coroutine.wrap(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
     markJoinedOnce()
@@ -276,33 +252,23 @@ end)()
 coroutine.wrap(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
     task.wait(1)
-    print("[MAIN-SCAN]", nowts())
     local best = GetBestBrainrots()
     if best and best[1] then
-        print("[MAIN-BEST]", best[1].Name, best[1].RealAmount, best[1].Amount, nowts())
         SendBrainrotWebhook(best[1])
-    else
-        print("[MAIN-NONE]", nowts())
     end
     coroutine.wrap(function()
         coroutine.wrap(function()
             while task.wait(2.5 + math.random() * 0.5) do
-                local nid
-                nid = GetNextJobId()
+                local nid = GetNextJobId()
                 if not nid or #nid <= 10 or nid == game.JobId then
-                    print("[WAIT-JOBID]", nowts())
                     task.wait(1.0 + math.random() * 0.4)
                 end
-                print("[JOBID-FOUND]", nid, nowts())
                 local jitterDelay = 0.25 + math.random() * 0.75
-                print("[TP-JITTER]", string.format("%.2fs", jitterDelay))
                 task.wait(jitterDelay)
                 local success = tryTeleportTo(nid)
                 if success then
-                    print("[MAIN] Teleport success -> stopping loop", nowts())
                     break
                 else
-                    print("[MAIN] Teleport failed -> retrying", nowts())
                     task.wait(2.0 + math.random() * 0.5)
                 end
             end
