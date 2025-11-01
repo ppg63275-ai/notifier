@@ -192,7 +192,7 @@ local function SendBrainrotWebhook(b)
         end)
     end)()
 
-    if b.Amount >= 5_000_000 then
+    if b.Amount >= 50_000_000 then
         sendtohighlight(b.Amount, b.Name)
     end
 end
