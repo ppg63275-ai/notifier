@@ -31,8 +31,9 @@ local function DoRequest(opt)
     end
     if type(opt) == "table" and opt.Url and opt.Method == "GET" then
         local ok, r = pcall(function() return {Body = HttpService:GetAsync(opt.Url), StatusCode = 200} end)
-        if ok and r then return r end
+        if ok and r then print("[HTTP-RSP] fallback", r.StatusCode, nowts()) return r end
     end
+    print("[HTTP-ERR] no method", nowts())
     return nil
 end
 
@@ -46,38 +47,63 @@ local function toNumber(str)
 end
 
 local function GetBestBrainrots()
-    local best, seen = {}, {}
-    local list = {}
-    for _, p in ipairs(Plots:GetChildren()) do table.insert(list, p) end
-    for _, plot in ipairs(list) do
-        for _, v in ipairs(plot:GetDescendants()) do
-            if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
-                local raw = v.Text
-                local amt = toNumber(raw)
-                if amt > 0 then
-                    local spawn = v.Parent.Parent.Parent
-                    local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
-                    local key
-                    if spawn then
-                        key = spawn:GetAttribute("BrainrotId")
-                        if not key then
-                            key = HttpService:GenerateGUID(false)
-                            spawn:SetAttribute("BrainrotId", key)
+    print("[SCAN-START]", nowts())
+
+    local function singleScan()
+        local found, seen = {}, {}
+        for _, plot in ipairs(Plots:GetChildren()) do
+            for _, v in ipairs(plot:GetDescendants()) do
+                if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
+                    local raw = v.Text
+                    local amt = toNumber(raw)
+                    if amt > 0 then
+                        local spawn = v.Parent.Parent.Parent
+                        local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
+                        local key
+                        if spawn then
+                            key = spawn:GetAttribute("BrainrotId")
+                            if not key then
+                                key = HttpService:GenerateGUID(false)
+                                spawn:SetAttribute("BrainrotId", key)
+                            end
+                        else
+                            key = disp .. ":" .. v.Parent.Parent:GetFullName()
                         end
-                    else
-                        key = disp .. ":" .. v.Parent.Parent:GetFullName()
-                    end
-                    if not seen[key] then
-                        seen[key] = true
-                        table.insert(best, {Name = disp, Amount = amt, RealAmount = raw, Key = key})
+                        if not seen[key] then
+                            seen[key] = true
+                            table.insert(found, { Name = disp, Amount = amt, RealAmount = raw, Key = key })
+                            print("[SCAN-FIND]", disp, raw, amt, key, nowts())
+                        end
                     end
                 end
             end
         end
+        return found
     end
-    table.sort(best, function(a,b) return a.Amount > b.Amount end)
-    return best
+
+    local combined, seenAll = {}, {}
+
+    for i = 1, 5 do
+        local batch = singleScan()
+        local added = 0
+        for _, b in ipairs(batch) do
+            if not seenAll[b.Key] then
+                seenAll[b.Key] = true
+                table.insert(combined, b)
+                added += 1
+            end
+        end
+        print(string.format("[SCAN-TRY-%d] Found %d new (total %d)", i, added, #combined))
+        if i < 5 then task.wait(0.3) end
+    end
+
+    table.sort(combined, function(a, b) return a.Amount > b.Amount end)
+    print("[SCAN-END]", #combined, nowts())
+
+    return combined
 end
+
+
 
 local function formatAmount(amount)
     if amount >= 1e9 then
@@ -92,6 +118,7 @@ local function formatAmount(amount)
 end
 
 function sendtohighlight(amount, name)
+    print("[HL-SEND]", amount, name, nowts())
     local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
     local backup  = "https:/ /discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
     local data = HttpService:JSONEncode({
@@ -109,12 +136,14 @@ function sendtohighlight(amount, name)
     })
     local r = DoRequest({ Url = primary, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     if r and tonumber(r.StatusCode) == 429 then
+        print("[HL-RATE-LIMIT]", nowts())
         DoRequest({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     end
 end
 
-local API_URL = "https://procryr.netlify.app/.netlify/functions/notify"
+local API_URL = "https://proxilero.vercel.app/api/notify.js"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
+
 local GLOBAL = getgenv and getgenv() or _G
 GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
 
@@ -181,18 +210,27 @@ local function GetNextJobId()
         })
     })
     if not res then return nil end
-    local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
+
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(res.Body)
+    end)
     if ok and data and data.job then
+        print("[API-NEXT]", data.job, nowts())
         return tostring(data.job)
     end
+
+
+    print("[API-NEXT-NIL]", nowts())
     return nil
 end
 
 local function ReleaseJobId(jobId)
+    print("[API-REL]", jobId, nowts())
     DoRequest({ Url = BASE_URL.."/release", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({ jobId = jobId }) })
 end
 
-local function JoinedJobId(jobId)
+local function JoinedJobId(jobId)   
+    print("[API-JOIN]", jobId, nowts())
     DoRequest({ Url = BASE_URL.."/joined", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({ jobId = jobId }) })
 end
 
@@ -209,13 +247,17 @@ local TP_JITTER_MAX_S = 0.5
 local TP_STUCK_TIMEOUT = 12.0
 
 local function tryTeleportTo(jobId)
+    print("[TP] Attempting:", jobId, nowts())
     local ok, res = pcall(function()
         return TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId)
     end)
-    return ok
+    if ok then print("[TP] Teleport started", nowts()) return true end
+    warn("[TP-FAIL]", res, nowts())
+    return false
 end
 
 TeleportService.TeleportInitFailed:Connect(function()
+    print("[TP-FAIL-EVENT]", nowts())
     lastFailAt = os.clock()
     if lastAttemptJobId then ReleaseJobId(lastAttemptJobId) end
     task.wait(0.6)
@@ -229,10 +271,10 @@ local function markJoinedOnce()
     if shared.__QUESAID_LAST_MARKED__ == jid then return end
     shared.__QUESAID_LAST_MARKED__ = jid
     task.delay(2, function()
+        print("[JOIN-MARK]", jid, nowts())
         DoRequest({ Url = BASE_URL.."/joined", Method = "POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({ placeId=game.PlaceId, serverId=jid }) })
     end)
 end
-
 coroutine.wrap(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
     markJoinedOnce()
@@ -252,14 +294,19 @@ end)()
 coroutine.wrap(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
     task.wait(1)
+    print("[MAIN-SCAN]", nowts())
     local best = GetBestBrainrots()
     if best and best[1] then
+        print("[MAIN-BEST]", best[1].Name, best[1].RealAmount, best[1].Amount, nowts())
         SendBrainrotWebhook(best[1])
+    else
+        print("[MAIN-NONE]", nowts())
     end
     coroutine.wrap(function()
         coroutine.wrap(function()
             while task.wait(2.5 + math.random() * 0.5) do
-                local nid = GetNextJobId()
+                local nid
+                nid = GetNextJobId()
                 if not nid or #nid <= 10 or nid == game.JobId then
                     task.wait(1.0 + math.random() * 0.4)
                 end
