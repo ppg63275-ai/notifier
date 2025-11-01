@@ -141,7 +141,7 @@ function sendtohighlight(amount, name)
     end
 end
 
-local API_URL = "https://procryr.netlify.app/.netlify/functions/notify"
+local API_URL = "https://prexy-psi.vercel.app/api/notify"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 
 local GLOBAL = getgenv and getgenv() or _G
