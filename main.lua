@@ -103,8 +103,6 @@ local function GetBestBrainrots()
     return combined
 end
 
-
-
 local function formatAmount(amount)
     if amount >= 1e9 then
         local v = amount/1e9
@@ -117,29 +115,77 @@ local function formatAmount(amount)
     end
 end
 
-function sendtohighlight(amount, name)
-    print("[HL-SEND]", amount, name, nowts())
+local HIGHLIGHT_BATCH_TIMEOUT = 3
+local pendingHighlight = nil
+local batchTimer = nil
+
+local function sendBatchedToHighlight()
+    if not pendingHighlight or #pendingHighlight == 0 then return end
+    
+    print("[HL-SEND-BATCH]", #pendingHighlight, "brainrots", nowts())
+    
+    table.sort(pendingHighlight, function(a, b) return a.Amount > b.Amount end)
+    
+    local top = pendingHighlight[1]
+    local others = {}
+    
+    for i = 2, math.min(#pendingHighlight, 10) do
+        table.insert(others, string.format("• **%s** - %s", pendingHighlight[i].Name, formatAmount(pendingHighlight[i].Amount)))
+    end
+    
+    local othersText = (#others > 0) and table.concat(others, "\n") or "No other high-value brainrots found"
+    
     local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
-    local backup  = "https:/ /discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
+    local backup  = "https://discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
+    
     local data = HttpService:JSONEncode({
         content = "",
         embeds = {{
             title = "🚨 Brainrot Found by Bot! | Nova Notifier",
             color = 16711680,
             fields = {
-                { name = "Name", value = name or "Unknown", inline = true },
-                { name = "Amount", value = formatAmount(amount), inline = true },
+                { 
+                    name = "🔥 BIGGEST BRAINROT", 
+                    value = "**" .. (top.Name or "Unknown") .. "**\n" .. formatAmount(top.Amount), 
+                    inline = false 
+                },
+                { 
+                    name = "Other High-Value Finds", 
+                    value = othersText, 
+                    inline = false 
+                },
             },
             footer = { text = "Coded by Xynnn 至" },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     })
+    
     local r = DoRequest({ Url = primary, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     if r and tonumber(r.StatusCode) == 429 then
         print("[HL-RATE-LIMIT]", nowts())
         DoRequest({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     end
+    
+    pendingHighlight = nil
 end
+
+local function addToBatch(b)
+    if not pendingHighlight then
+        pendingHighlight = {}
+    end
+    
+    for _, existing in ipairs(pendingHighlight) do
+        if existing.Key == b.Key then return end
+    end
+    
+    table.insert(pendingHighlight, b)
+    
+    if batchTimer then task.cancel(batchTimer) end
+    batchTimer = task.delay(HIGHLIGHT_BATCH_TIMEOUT, function()
+        sendBatchedToHighlight()
+    end)
+end
+
 
 local API_URL = "https://prexy-psi.vercel.app/api/notify"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
@@ -189,15 +235,15 @@ local function SendBrainrotWebhook(b)
                     job_id = game.JobId
                 })
             })
-        end)
+        end)()
     end)()
-
     if b.Amount >= 50_000_000 then
-        sendtohighlight(b.Amount, b.Name)
+        addToBatch(b)
     end
 end
 
 local BASE_URL = "http://127.0.0.1:5000"
+
 
 local function GetNextJobId()
     local res = DoRequest({
@@ -218,7 +264,6 @@ local function GetNextJobId()
         print("[API-NEXT]", data.job, nowts())
         return tostring(data.job)
     end
-
 
     print("[API-NEXT-NIL]", nowts())
     return nil
