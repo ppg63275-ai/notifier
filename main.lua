@@ -117,38 +117,30 @@ local function formatAmount(amount)
     end
 end
 
-local function sendtohighlight_all(highlights)
-    if not highlights or #highlights == 0 then return end
-    print(string.format("[HL-SEND-ALL] Sending %d highlights", #highlights), nowts())
-
+function sendtohighlight(amount, name)
+    print("[HL-SEND]", amount, name, nowts())
     local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
     local backup  = "https:/ /discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
-    local fields = {}
-    for _, b in ipairs(highlights) do
-        table.insert(fields, {
-            name = b.Name or "Unknown",
-            value = formatAmount(b.Amount),
-            inline = true
-        })
-    end
-
     local data = HttpService:JSONEncode({
         content = "",
         embeds = {{
-            title = string.format("🚨 %d Brainrots Found by Bot! | Nova Notifier", #highlights),
+            title = "🚨 Brainrot Found by Bot! | Nova Notifier",
             color = 16711680,
-            fields = fields,
+            fields = {
+                { name = "Name", value = name or "Unknown", inline = true },
+                { name = "Amount", value = formatAmount(amount), inline = true },
+            },
             footer = { text = "Coded by Xynnn 至" },
-            timestamp = nowts()
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     })
-
-    local r = DoRequest({ Url = primary, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = data })
+    local r = DoRequest({ Url = primary, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     if r and tonumber(r.StatusCode) == 429 then
         print("[HL-RATE-LIMIT]", nowts())
-        DoRequest({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = data })
+        DoRequest({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     end
 end
+
 local API_URL = "https://prexy-psi.vercel.app/api/notify"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 
@@ -199,6 +191,10 @@ local function SendBrainrotWebhook(b)
             })
         end)
     end)()
+
+    if b.Amount >= 50_000_000 then
+        sendtohighlight(b.Amount, b.Name)
+    end
 end
 
 local BASE_URL = "http://127.0.0.1:5000"
@@ -302,16 +298,7 @@ coroutine.wrap(function()
     local best = GetBestBrainrots()
     if best and best[1] then
         print("[MAIN-BEST]", best[1].Name, best[1].RealAmount, best[1].Amount, nowts())
-        for _, b in ipairs(best) do
-            SendBrainrotWebhook(b)
-            end
-        local highlights = {}
-        for _, b in ipairs(best) do
-            if b.Amount >= 50_000_000 then
-                table.insert(highlights, b)
-            end
-        end
-        sendtohighlight_all(highlights)
+        SendBrainrotWebhook(best[1])
     else
         print("[MAIN-NONE]", nowts())
     end
