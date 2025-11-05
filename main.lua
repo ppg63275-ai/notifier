@@ -117,13 +117,12 @@ local function formatAmount(amount)
     end
 end
 
-local function sendAllHighlights(highlights)
-    if #highlights == 0 then return end
-    print("[HL-SEND-ALL]", #highlights, nowts())
+local function sendtohighlight_all(highlights)
+    if not highlights or #highlights == 0 then return end
+    print(string.format("[HL-SEND-ALL] Sending %d highlights", #highlights), nowts())
 
     local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
     local backup  = "https:/ /discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
-
     local fields = {}
     for _, b in ipairs(highlights) do
         table.insert(fields, {
@@ -140,7 +139,7 @@ local function sendAllHighlights(highlights)
             color = 16711680,
             fields = fields,
             footer = { text = "Coded by Xynnn 至" },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            timestamp = nowts()
         }}
     })
 
@@ -150,7 +149,6 @@ local function sendAllHighlights(highlights)
         DoRequest({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = data })
     end
 end
-
 local API_URL = "https://prexy-psi.vercel.app/api/notify"
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 
@@ -201,10 +199,6 @@ local function SendBrainrotWebhook(b)
             })
         end)
     end)()
-
-    if b.Amount >= 50_000_000 then
-        sendtohighlight(b.Amount, b.Name)
-    end
 end
 
 local BASE_URL = "http://127.0.0.1:5000"
@@ -317,7 +311,7 @@ coroutine.wrap(function()
                 table.insert(highlights, b)
             end
         end
-        sendAllHighlights(highlights)
+        sendtohighlight_all(highlights)
     else
         print("[MAIN-NONE]", nowts())
     end
