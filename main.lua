@@ -464,7 +464,9 @@ task.spawn(function()
     if not sentKeys[m.Key] then
         sentKeys[m.Key] = true
         sendWebhook(m.Name, m.MPS)
-        addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key })
+         if m.MPS > 50_000_000 then
+        addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key }
+         end
         sendToAPI(m.name, m.MPS)
     end
 end
