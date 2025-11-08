@@ -238,30 +238,6 @@ local BLOCK_WORDS = {
     ["equip"]=true, ["unequip"]=true, ["upgrade"]=true, ["craft"]=true, ["merge"]=true,
     ["vip"]=true, ["event"]=true
 }
-local function stripRichText(s) s=type(s)=="string" and s or ""; s=s:gsub("<.->",""); s=s:gsub("%s+"," "):gsub("^%s+",""):gsub("%s+$",""); return s end
-local function isMoneyLine(s) local l=(s or ""):lower(); return l:find("%$") or l:find("/s") or l:find("b/s") or l:find("m/s") or l:find("k/s") end
-local function isAllCaps(s) local letters=(s or ""):gsub("[^%a]",""); if #letters<3 then return false end; return letters:upper()==letters end
-local function hasOnlyBlockedWords(s)
-    local any=false
-    for w in (s or ""):gmatch("%S+") do
-        local k = w:lower():gsub("[^%a%-_]","")
-        if k~="" then any=true; if not BLOCK_WORDS[k] then return false end end
-    end
-    return any
-end
-local function scoreName(raw)
-    local s = stripRichText(raw or "")
-    if s=="" then return -1, "" end
-    if isMoneyLine(s) then return -1, "" end
-    if s:match("^%d+$") then local n=#s; if n>=2 and n<=4 then return 100, s else return -1, "" end end
-    if s:find("%d") then return -1, "" end
-    if isAllCaps(s) or hasOnlyBlockedWords(s) then return -1, "" end
-    local len=#s; local words=0; for _ in s:gmatch("%S+") do words=words+1 end
-    local sc=0; sc=sc+math.min(len,36); if words>=2 and words<=5 then sc=sc+25 end
-    if s:match("^[%u]") and not s:match("^[%u%s%-_']+$") then sc=sc+3 end
-    if s:find("[%.%,%!%?]") then sc=sc-2 end
-    return sc, s
-end
 local function parseMPS(s)
     if type(s)~="string" then return nil end
     local t=s:gsub(",",""):gsub("%s+","")
@@ -284,35 +260,41 @@ local function shortMoney(v)
         return string.format("$%d/s", math.floor(v))
     end
 end
-local function firstBasePart(m)
-    if m:IsA("Model") and m.PrimaryPart then return m.PrimaryPart end
-    for _,d in ipairs(m:GetDescendants()) do if d:IsA("BasePart") then return d end end
-end
 local function scanModel(m)
-    if not m:IsA("Model") then return nil,nil end
-    local ok,_,size = pcall(m.GetBoundingBox, m)
-    if not ok or not size or size.Magnitude>MODEL_MAX_SIZE then return nil,nil end
-    local bestMPS=nil; local bestName,bestScore=nil,-1
-    for _,gui in ipairs(m:GetDescendants()) do
+    if not m:IsA("Model") then return nil, nil end
+    local ok, _, size = pcall(m.GetBoundingBox, m)
+    if not ok or not size or size.Magnitude > MODEL_MAX_SIZE then return nil, nil end
+
+    local bestName = nil
+    local bestMPS = nil
+
+    for _, gui in ipairs(m:GetDescendants()) do
         if gui:IsA("BillboardGui") then
-            local money=nil
-            for _,t in ipairs(gui:GetDescendants()) do
+            local displayName = nil
+            local generation = nil
+
+            for _, t in ipairs(gui:GetDescendants()) do
                 if t:IsA("TextLabel") then
-                    local v=parseMPS(t.Text or ""); if v and (not money or v>money) then money=v end
-                end
-            end
-            if money then
-                for _,t in ipairs(gui:GetDescendants()) do
-                    if t:IsA("TextLabel") then
-                        local sc, nm = scoreName(t.Text or "")
-                        if sc>bestScore then bestScore,bestName=sc,nm end
+                    if t.Name == "DisplayName" then
+                        displayName = t.Text
+                    elseif t.Name == "Generation" then
+                        generation = parseMPS(t.Text or "")
                     end
                 end
-                if (not bestMPS) or money>bestMPS then bestMPS=money end
+            end
+
+            if generation then
+                bestMPS = generation
+                bestName = displayName or m.Name
+                break
             end
         end
     end
-    if (bestName==nil or bestName=="") then bestName = m.Name end
+
+    if not bestName or bestName == "" then
+        bestName = m.Name
+    end
+
     return bestName, bestMPS
 end
 local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
@@ -334,32 +316,28 @@ local function getZurichTime()
     local utc = os.time(os.date("!*t"))
 
     local year = tonumber(os.date("!*t").year)
-
-    -- Helper: last Sunday of a month
     local function lastSunday(month)
         local t = { year = year, month = month, day = 31, hour = 0 }
         local ts = os.time(t)
-        local weekday = tonumber(os.date("!*t", ts).wday) -- Sunday=1
+        local weekday = tonumber(os.date("!*t", ts).wday)
         return 31 - ((weekday - 1) % 7)
     end
 
-    local dstStart = lastSunday(3)    -- March
-    local dstEnd   = lastSunday(10)   -- October
+    local dstStart = lastSunday(3)
+    local dstEnd   = lastSunday(10)
 
     local month = tonumber(os.date("!*t").month)
     local day   = tonumber(os.date("!*t").day)
-    local hourOffset = 1 -- Standard UTC+1
+    local hourOffset = 1
 
     if (month > 3 and month < 10) or
        (month == 3 and day >= dstStart) or
        (month == 10 and day < dstEnd) then
-        hourOffset = 2 -- DST UTC+2
+        hourOffset = 2
     end
 
     return utc + (hourOffset * 3600)
 end
-
--- Example usage
 local zurichTime = getZurichTime()
 local sentKeys = {}
 
