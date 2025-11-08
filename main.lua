@@ -49,25 +49,36 @@ local function getWebhookForMPS(mps)
     return nil, nil
 end
 local request = rawget(_G,"http_request") or rawget(_G,"request") or (syn and syn.request) or (http and http.request)
+local HIGHLIGHT_MIN_MPS = 1_000_000
 local function sendBatchedToHighlight()
     if not pendingHighlight or #pendingHighlight == 0 then return end
     
     print("[HL-SEND-BATCH]", #pendingHighlight, "brainrots", os.date("%H:%M:%S"))
+    local toSend = {}
+    for _, b in ipairs(pendingHighlight) do
+        if b.Amount >= HIGHLIGHT_MIN_MPS then
+            table.insert(toSend, b)
+        end
+    end
+    if #toSend == 0 then
+        pendingHighlight = nil
+        return
+    end
+
+    table.sort(toSend, function(a, b) return a.Amount > b.Amount end)
     
-    table.sort(pendingHighlight, function(a, b) return a.Amount > b.Amount end)
-    
-    local top = pendingHighlight[1]
+    local top = toSend[1]
     local others = {}
     
-    for i = 2, math.min(#pendingHighlight, 10) do
-        table.insert(others, string.format("• **%s** - %s", pendingHighlight[i].Name, shortMoney(pendingHighlight[i].Amount)))
+    for i = 2, #toSend do
+        table.insert(others, string.format("• **%s** - %s", toSend[i].Name, shortMoney(toSend[i].Amount)))
     end
     
     local othersText = (#others > 0) and table.concat(others, "\n") or "No other high-value brainrots found"
-    
+
     local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
     local backup  = "https://discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
-    
+
     local data = HttpService:JSONEncode({
         content = "",
         embeds = {{
@@ -81,13 +92,13 @@ local function sendBatchedToHighlight()
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     })
-    
+
     local r = request and request({ Url = primary, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     if r and tonumber(r.StatusCode) == 429 then
         print("[HL-RATE-LIMIT]", os.date("%H:%M:%S"))
         request({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
     end
-    
+
     pendingHighlight = nil
 end
 
@@ -304,7 +315,21 @@ local function scanModel(m)
     if (bestName==nil or bestName=="") then bestName = m.Name end
     return bestName, bestMPS
 end
-
+local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
+local function sendToAPI(name, value)
+    pcall(function()
+        request({
+            Url = PYTHONANYWHERE_URL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode({ 
+                name = name or "Unknown",
+                value = value or 0,
+                job_id = game.JobId
+            })
+        })
+    end)
+end
 local sentKeys = {}
 
 local function sendWebhook(name, mps)
@@ -439,8 +464,8 @@ task.spawn(function()
     if not sentKeys[m.Key] then
         sentKeys[m.Key] = true
         sendWebhook(m.Name, m.MPS)
-        -- Add to highlight batch
         addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key })
+        sendToAPI(m.name, m.MPS)
     end
 end
 
