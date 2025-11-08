@@ -330,6 +330,25 @@ local function sendToAPI(name, value)
         })
     end)
 end
+local function getZurichTime()
+    local utc = os.time(os.date("!*t"))
+    local month = tonumber(os.date("!*t").month)
+    local hourOffset = 1
+
+    if month > 3 and month < 10 then
+        hourOffset = 2
+    elseif month == 3 then
+        local day = tonumber(os.date("!*t").day)
+        if day >= 25 then hourOffset = 2 end
+    elseif month == 10 then
+        local day = tonumber(os.date("!*t").day)
+        if day < 25 then hourOffset = 2 end
+    end
+
+    return utc + (hourOffset * 3600)
+end
+
+local zurichTime = getZurichTime()
 local sentKeys = {}
 
 local function sendWebhook(name, mps)
@@ -353,7 +372,7 @@ end
         string.sub(jobId, 20, 23),
         string.sub(jobId, 25, 36)
     )
-    local browserLink = "https://www.roblox.com/games/" .. tostring(placeId) .. "/?gameInstanceId=" .. tostring(jobId)
+    local browserLink = "https://customscriptwow.vercel.app/api/joiner.html?placeId=" .. tostring(placeId) .. "&gameInstanceId=" .. tostring(jobId)
     local joinScript = 'game:GetService("TeleportService"):TeleportToPlaceInstance(' .. tostring(placeId) .. ',"' .. tostring(jobId) .. '",game.Players.LocalPlayer)'
 
     local embed = {
@@ -368,7 +387,7 @@ end
             { name = "**🌐Join Link**", value = "[**Click to Join**](" .. browserLink .. ")", inline = false },
             { name = "**📜Join Script (PC)**", value = "```" .. joinScript .. "```", inline = false },
         },
-        footer = { text = "Made by Xynnn 至 • Today at " .. os.date("%H:%M") }
+        footer = { text = "Made by Xynnn 至 • Today at " .. os.date("%Y-%m-%dT%H:%M:%S", zurichTime) }
     }
 
     pcall(function()
