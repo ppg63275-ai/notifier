@@ -460,23 +460,25 @@ task.spawn(function()
         if #newModels > 0 then
             print("[SCAN] Found new models in this batch:")
             for _, m in ipairs(newModels) do
-    print(string.format(" - Name: %s | MPS: %s | Key: %s", m.Name, shortMoney(m.MPS), m.Key))
-    if not sentKeys[m.Key] then
-        sentKeys[m.Key] = true
-        sendWebhook(m.Name, m.MPS)
-         if m.MPS > 50_000_000 then
-        addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key }
-         end
-        sendToAPI(m.name, m.MPS)
-    end
-end
-
+                print(string.format(" - Name: %s | MPS: %s | Key: %s", m.Name, shortMoney(m.MPS), m.Key))
+                if not sentKeys[m.Key] then
+                    sentKeys[m.Key] = true
+                    sendWebhook(m.Name, m.MPS)
+                    
+                    if m.MPS > 50_000_000 then
+                        addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key })
+                    end
+                    
+                    sendToAPI(m.Name, m.MPS)
+                end
+            end
         else
             print("[SCAN] No new models found in this batch.")
         end
         task.wait(WEBHOOK_REFRESH)
     end
 end)
+
 
 
 
