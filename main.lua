@@ -1,5 +1,5 @@
 local BACKEND_URL = "http://127.0.0.1:5000/"
-local MIN_PLAYERS = 0
+local MIN_PLAYERS = 1
 local WEBHOOK_REFRESH = 0.20
 local MODEL_MAX_SIZE = 40
 local TP_MIN_GAP_S     = 1
