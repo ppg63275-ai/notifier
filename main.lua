@@ -449,7 +449,7 @@ local function scanBatch()
                 end
             end
         end
-        task.wait(0.3)
+        task.wait(0.4)
     end
     return combined
 end
@@ -479,10 +479,6 @@ task.spawn(function()
         task.wait(WEBHOOK_REFRESH)
     end
 end)
-
-
-
-
 local function hopLoop()
     while true do
         local id = nextServer()
