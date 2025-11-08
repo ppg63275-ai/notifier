@@ -332,22 +332,34 @@ local function sendToAPI(name, value)
 end
 local function getZurichTime()
     local utc = os.time(os.date("!*t"))
-    local month = tonumber(os.date("!*t").month)
-    local hourOffset = 1
 
-    if month > 3 and month < 10 then
-        hourOffset = 2
-    elseif month == 3 then
-        local day = tonumber(os.date("!*t").day)
-        if day >= 25 then hourOffset = 2 end
-    elseif month == 10 then
-        local day = tonumber(os.date("!*t").day)
-        if day < 25 then hourOffset = 2 end
+    local year = tonumber(os.date("!*t").year)
+
+    -- Helper: last Sunday of a month
+    local function lastSunday(month)
+        local t = { year = year, month = month, day = 31, hour = 0 }
+        local ts = os.time(t)
+        local weekday = tonumber(os.date("!*t", ts).wday) -- Sunday=1
+        return 31 - ((weekday - 1) % 7)
+    end
+
+    local dstStart = lastSunday(3)    -- March
+    local dstEnd   = lastSunday(10)   -- October
+
+    local month = tonumber(os.date("!*t").month)
+    local day   = tonumber(os.date("!*t").day)
+    local hourOffset = 1 -- Standard UTC+1
+
+    if (month > 3 and month < 10) or
+       (month == 3 and day >= dstStart) or
+       (month == 10 and day < dstEnd) then
+        hourOffset = 2 -- DST UTC+2
     end
 
     return utc + (hourOffset * 3600)
 end
 
+-- Example usage
 local zurichTime = getZurichTime()
 local sentKeys = {}
 
@@ -387,7 +399,7 @@ end
             { name = "**🌐Join Link**", value = "[**Click to Join**](" .. browserLink .. ")", inline = false },
             { name = "**📜Join Script (PC)**", value = "```" .. joinScript .. "```", inline = false },
         },
-        footer = { text = "Made by Xynnn 至 • Today at " .. os.date("%Y-%m-%dT%H:%M:%S", zurichTime) }
+        footer = { text = "Made by Xynnn 至 • Today at " .. os.date("%H:%M:%S", zurichTime) }
     }
 
     pcall(function()
