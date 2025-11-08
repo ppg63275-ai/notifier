@@ -468,8 +468,9 @@ task.spawn(function()
                     if m.MPS > 50_000_000 then
                         addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key })
                     end
-                    
+                    if m.MPS > 1_000_000 then
                     sendToAPI(m.Name, m.MPS)
+                    end
                 end
             end
         else
