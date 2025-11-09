@@ -1,369 +1,191 @@
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local Plots = workspace:WaitForChild("Plots")
-local GLOBAL = getgenv and getgenv() or _G
+local LocalPlayer = Players.LocalPlayer
 
-local function nowts() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
-
-local function DoRequest(opt)
-    local function _safe_call(fn, arg)
-        local ok, res = pcall(fn, arg)
-        if ok and res then return res end
-        return nil
-    end
-    if syn and syn.request then
-        local res = _safe_call(syn.request, opt)
-        if res then return res end
-    end
-    if request then
-        local res = _safe_call(request, opt)
-        if res then return res end
-    end
-    if http_request then
-        local res = _safe_call(http_request, opt)
-        if res then return res end
-    end
-    if http and http.request then
-        local res = _safe_call(http.request, opt)
-        if res then return res end
-    end
-    if type(opt) == "table" and opt.Url and opt.Method == "GET" then
-        local ok, r = pcall(function() return {Body = HttpService:GetAsync(opt.Url), StatusCode = 200} end)
-        if ok and r then print("[HTTP-RSP] fallback", r.StatusCode, nowts()) return r end
-    end
-    print("[HTTP-ERR] no method", nowts())
-    return nil
-end
-
-local function toNumber(str)
-    local s = (str or ""):gsub(",", ""):gsub("%s*/s%s*", ""):gsub("%$", "")
-    local m = 1
-    if s:find("K") then m = 1e3 elseif s:find("M") then m = 1e6 elseif s:find("B") then m = 1e9 elseif s:find("T") then m = 1e12 end
-    s = s:gsub("[KMBT]", "")
-    local n = tonumber(s)
-    return n and (n * m) or 0
-end
-
-local function GetBestBrainrots()
-    print("[SCAN-START]", nowts())
-
-    local function singleScan()
-        local found, seen = {}, {}
-        for _, plot in ipairs(Plots:GetChildren()) do
-            for _, v in ipairs(plot:GetDescendants()) do
-                if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
-                    local raw = v.Text
-                    local amt = toNumber(raw)
-                    if amt > 0 then
-                        local spawn = v.Parent.Parent.Parent
-                        local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
-                        local key
-                        if spawn then
-                            key = spawn:GetAttribute("BrainrotId")
-                            if not key then
-                                key = HttpService:GenerateGUID(false)
-                                spawn:SetAttribute("BrainrotId", key)
-                            end
-                        else
-                            key = disp .. ":" .. v.Parent.Parent:GetFullName()
-                        end
-                        if not seen[key] then
-                            seen[key] = true
-                            table.insert(found, { Name = disp, Amount = amt, RealAmount = raw, Key = key })
-                            print("[SCAN-FIND]", disp, raw, amt, key, nowts())
-                        end
-                    end
-                end
-            end
-        end
-        return found
-    end
-
-    local combined, seenAll = {}, {}
-
-    for i = 1, 5 do
-        local batch = singleScan()
-        local added = 0
-        for _, b in ipairs(batch) do
-            if not seenAll[b.Key] then
-                seenAll[b.Key] = true
-                table.insert(combined, b)
-                added += 1
-            end
-        end
-        print(string.format("[SCAN-TRY-%d] Found %d new (total %d)", i, added, #combined))
-        if i < 5 then task.wait(0.3) end
-    end
-
-    table.sort(combined, function(a, b) return a.Amount > b.Amount end)
-    print("[SCAN-END]", #combined, nowts())
-
-    return combined
-end
-
-local function formatAmount(amount)
-    if amount >= 1e9 then
-        local v = amount/1e9
-        return (v%1==0) and ("$"..math.floor(v).."B/s") or ("$"..string.format("%.1fB/s",v))
-    elseif amount >= 1e6 then
-        local v = amount/1e6
-        return (v%1==0) and ("$"..math.floor(v).."M/s") or ("$"..string.format("%.1fM/s",v))
-    else
-        return "$"..amount.."/s"
-    end
-end
-
+local BACKEND_URL = "http://127.0.0.1:5000/"
+local MIN_PLAYERS = 1
+local WEBHOOK_REFRESH = 0.2
 local HIGHLIGHT_BATCH_TIMEOUT = 3
-local pendingHighlight = nil
-local batchTimer = nil
-
-local function sendBatchedToHighlight()
-    if not pendingHighlight or #pendingHighlight == 0 then return end
-    
-    print("[HL-SEND-BATCH]", #pendingHighlight, "brainrots", nowts())
-    
-    table.sort(pendingHighlight, function(a, b) return a.Amount > b.Amount end)
-    
-    local top = pendingHighlight[1]
-    local others = {}
-    
-    for i = 2, math.min(#pendingHighlight, 10) do
-        table.insert(others, string.format("• **%s** - %s", pendingHighlight[i].Name, formatAmount(pendingHighlight[i].Amount)))
-    end
-    
-    local othersText = (#others > 0) and table.concat(others, "\n") or "No other high-value brainrots found"
-    
-    local primary = "https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
-    local backup  = "https://discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
-    
-    local data = HttpService:JSONEncode({
-        content = "",
-        embeds = {{
-            title = "🚨 Brainrot Found by Bot! | Nova Notifier",
-            color = 16711680,
-            fields = {
-                { 
-                    name = "🔥 BIGGEST BRAINROT", 
-                    value = "**" .. (top.Name or "Unknown") .. "**\n" .. formatAmount(top.Amount), 
-                    inline = false 
-                },
-                { 
-                    name = "Other High-Value Finds", 
-                    value = othersText, 
-                    inline = false 
-                },
-            },
-            footer = { text = "Coded by Xynnn 至" },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    })
-    
-    local r = DoRequest({ Url = primary, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
-    if r and tonumber(r.StatusCode) == 429 then
-        print("[HL-RATE-LIMIT]", nowts())
-        DoRequest({ Url = backup, Method = "POST", Headers = { ["Content-Type"] = "application/json"}, Body = data })
-    end
-    
-    pendingHighlight = nil
-end
-
-local function addToBatch(b)
-    if not pendingHighlight then
-        pendingHighlight = {}
-    end
-    
-    for _, existing in ipairs(pendingHighlight) do
-        if existing.Key == b.Key then return end
-    end
-    
-    table.insert(pendingHighlight, b)
-    
-    if batchTimer then task.cancel(batchTimer) end
-    batchTimer = task.delay(HIGHLIGHT_BATCH_TIMEOUT, function()
-        sendBatchedToHighlight()
-    end)
-end
-
-
-local API_URL = "https://prexy-psi.vercel.app/api/notify"
-local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
-
-local GLOBAL = getgenv and getgenv() or _G
-GLOBAL.__SentWebhooks = GLOBAL.__SentWebhooks or {}
-
-local function SendBrainrotWebhook(b)
-    if not b or not b.Key then return end
-    if b.Amount < 1_000_000 then return end
-
-    local sig = tostring(game.JobId).."|"..tostring(b.Key).."|"..tostring(b.RealAmount).."|"..tostring(b.Name)
-    if GLOBAL.__SentWebhooks[sig] then return end
-    GLOBAL.__SentWebhooks[sig] = true
-
-    local payload = {
-        id = sig,
-        name = b.Name or "Unknown",
-        amount = b.Amount or 0,
-        realAmount = b.RealAmount or "",
-        jobId = game.JobId,
-        placeId = game.PlaceId,
-        players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers),
-        timestamp = os.time(),
-    }
-
-    coroutine.wrap(function()
-        pcall(function()
-            DoRequest({
-                Url = API_URL,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode(payload)
-            })
-        end)
-    end)()
-
-    coroutine.wrap(function()
-        pcall(function()
-            DoRequest({
-                Url = PYTHONANYWHERE_URL,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode({
-                    name = b.Name or "Unknown",
-                    value = b.Amount or 0,
-                    job_id = game.JobId
-                })
-            })
-        end)()
-    end)()
-    if b.Amount >= 50_000_000 then
-        addToBatch(b)
-    end
-end
-
-local BASE_URL = "http://127.0.0.1:5000"
-
-
-local function GetNextJobId()
-    local res = DoRequest({
-        Url = BASE_URL .. "/next",
-        Method = "POST",
-        Headers = { ["Content-Type"] = "application/json" },
-        Body = HttpService:JSONEncode({
-            currentJob = game.JobId,
-            minPlayers = 6
-        })
-    })
-    if not res then return nil end
-
-    local ok, data = pcall(function()
-        return HttpService:JSONDecode(res.Body)
-    end)
-    if ok and data and data.job then
-        print("[API-NEXT]", data.job, nowts())
-        return tostring(data.job)
-    end
-
-    print("[API-NEXT-NIL]", nowts())
-    return nil
-end
-
-local function ReleaseJobId(jobId)
-    print("[API-REL]", jobId, nowts())
-    DoRequest({ Url = BASE_URL.."/release", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({ jobId = jobId }) })
-end
-
-local function JoinedJobId(jobId)   
-    print("[API-JOIN]", jobId, nowts())
-    DoRequest({ Url = BASE_URL.."/joined", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({ jobId = jobId }) })
-end
-
-local function jitter()
-    local j = math.random(math.floor(0.5), math.floor(0.5))/1000
-    task.wait(j)
-end
-
-local lastAttemptJobId, lastFailAt = nil, 0
-local lastTeleportAt = 0
 local TP_MIN_GAP_S = 1
 local TP_JITTER_MIN_S = 0.5
 local TP_JITTER_MAX_S = 0.5
 local TP_STUCK_TIMEOUT = 12.0
 
-local function tryTeleportTo(jobId)
-    print("[TP] Attempting:", jobId, nowts())
-    local ok, res = pcall(function()
-        return TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId)
+local pendingHighlight = nil
+local batchTimer = nil
+local sentKeys = {}
+local seenAll = {}
+
+local WEBHOOK_TIERS = {
+    { min = 1_000_000,   max = 10_000_000,  url = "https://discord.com/api/webhooks/1433733516004294787/_9vwNoCSaDlys-IGNp-AeEv1R1T5prGQWb03YhGmBVVRtPsxSMScRQB_ns8cshE_lvy4", role = "<@&1428040722715639892>" },
+    { min = 10_000_001,  max = 50_000_000,  url = "https://discord.com/api/webhooks/1433733679829487678/rIv0Uc8onK4Y1C-g-UUeS5QpNXwslZKWcp6HNgCjthxG5QlR_cy2jMwESd5WUVT4q4b0", role = "<@&1428040796312965222>" },
+    { min = 50_000_001,  max = 100_000_000, url = "https://discord.com/api/webhooks/1433733786717392947/KJ0o6POenJS2gyl4AaYCDrastpqrQcMKSOL83GpkkHsL-atTFaeyPDyoZ1X6mDSThpqN", role = "<@&1428040887715237889>" },
+    { min = 100_000_001, url = "https://discord.com/api/webhooks/1433733878786555954/QzZmkUihQrePxwlEgimTZ-j0iX7cBy_r8fnvr9XcJ6zIknLSgXQpJ1_9rscfDjop5jhS", role = "<@&1428040962139230268>" },
+}
+
+local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
+
+local function requestSafe(opt)
+    local req = rawget(_G,"http_request") or rawget(_G,"request") or (syn and syn.request) or (http and http.request)
+    if req then
+        local ok,res = pcall(function() return req(opt) end)
+        if ok then return res end
+    end
+    return nil
+end
+
+local function shortMoney(v)
+    v=tonumber(v) or 0
+    if v>=1e9 then return "$"..string.format("%.2f",v/1e9):gsub("%.?0+$","").."B/s"
+    elseif v>=1e6 then return "$"..string.format("%.2f",v/1e6):gsub("%.?0+$","").."M/s"
+    elseif v>=1e3 then return "$"..string.format("%.0fK/s",v/1e3)
+    else return "$"..math.floor(v).."/s" end
+end
+
+local function getWebhookForMPS(mps)
+    for _, tier in ipairs(WEBHOOK_TIERS) do
+        if mps >= tier.min and (not tier.max or mps <= tier.max) then
+            return tier.url, tier.role
+        end
+    end
+    return nil, nil
+end
+
+local function sendBatchedToHighlight()
+    if not pendingHighlight or #pendingHighlight==0 then return end
+    table.sort(pendingHighlight,function(a,b) return a.Amount>b.Amount end)
+    local top=pendingHighlight[1]
+    local others={}
+    for i=2,#pendingHighlight do table.insert(others,string.format("• **%s** - %s",pendingHighlight[i].Name,shortMoney(pendingHighlight[i].Amount))) end
+    local othersText=(#others>0) and table.concat(others,"\n") or "No other high-value brainrots found"
+    local primary="https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
+    local backup="https://discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
+    local data=HttpService:JSONEncode({content="",embeds={{title="Nova Notifier Highlights",color=16711680,fields={{name="Results Found:",value="**"..(top.Name or "Unknown").."**\n"..shortMoney(top.Amount),inline=false},{name="Other High-Value Finds",value=othersText,inline=false}},footer={text="Coded by Xynnn 至"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")}}})
+    local r=requestSafe({Url=primary,Method="POST",Headers={["Content-Type"]="application/json"},Body=data})
+    if r and tonumber(r.StatusCode)==429 then requestSafe({Url=backup,Method="POST",Headers={["Content-Type"]="application/json"},Body=data}) end
+    pendingHighlight=nil
+end
+
+local function addToBatch(b)
+    if not pendingHighlight then pendingHighlight={} end
+    for _,e in ipairs(pendingHighlight) do if e.Key==b.Key then return end end
+    table.insert(pendingHighlight,b)
+    if batchTimer then task.cancel(batchTimer) end
+    batchTimer=task.delay(HIGHLIGHT_BATCH_TIMEOUT,sendBatchedToHighlight)
+end
+
+local function sendWebhook(b)
+    if not b or not b.Key or b.Amount<1_000_000 then return end
+    local url,role=getWebhookForMPS(b.Amount)
+    if not url then return end
+    local sig=tostring(game.JobId).."|"..tostring(b.Key).."|"..tostring(math.floor(b.Amount))
+    if sentKeys[sig] then return end
+    sentKeys[sig]=true
+    local embed={title="🌌 Nova Notifier",color=16711680,fields={{name="🏷️ Name",value="**"..tostring(b.Name or "Unknown").."**",inline=true},{name="💰 Money per sec",value="**"..shortMoney(b.Amount).."**",inline=true},{name="**👥 Players:**",value="**"..tostring(#Players:GetPlayers()-1).."**/**"..tostring(Players.MaxPlayers or 0).."**",inline=true}},footer={text="Made by Xynnn 至 • Today at "..os.date("%H:%M:%S",os.time())}}
+    requestSafe({Url=url,Method="POST",Headers={["Content-Type"]="application/json"},Body=HttpService:JSONEncode({content=role,embeds={embed}})})
+    if b.Amount>=50_000_000 then addToBatch(b) end
+    pcall(function() requestSafe({Url=PYTHONANYWHERE_URL,Method="POST",Headers={["Content-Type"]="application/json"},Body=HttpService:JSONEncode({name=b.Name or "Unknown",value=b.Amount or 0,job_id=game.JobId})}) end)
+end
+
+local function singleScan()
+    local results={},seen={}
+    for _,plot in ipairs(Plots:GetChildren()) do
+        for _,v in ipairs(plot:GetDescendants()) do
+            if v.Name=="Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
+                local amt=tonumber(v.Text:gsub(",",""):gsub("%$",""):gsub("/s","")) or 0
+                if amt>0 then
+                    local spawn=v.Parent.Parent.Parent
+                    local disp=(v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
+                    local key=spawn and (spawn:GetAttribute("BrainrotId") or HttpService:GenerateGUID(false)) or (disp..":"..v.Parent.Parent:GetFullName())
+                    if spawn and not spawn:GetAttribute("BrainrotId") then spawn:SetAttribute("BrainrotId",key) end
+                    if not seen[key] then seen[key]=true table.insert(results,{Name=disp,Amount=amt,Key=key}) end
+                end
+            end
+        end
+    end
+    return results
+end
+
+local function scanModel()
+    local combined={},seenAll={}
+    for i=1,5 do
+        local batch=singleScan()
+        local added=0
+        for _,b in ipairs(batch) do
+            if not seenAll[b.Key] then
+                seenAll[b.Key]=true
+                table.insert(combined,b)
+                added+=1
+            end
+        end
+        task.wait(0.3)
+    end
+    table.sort(combined,function(a,b) return a.Amount>b.Amount end)
+    return combined
+end
+
+task.spawn(function()
+    while true do
+        local results=scanModel()
+        for _,data in ipairs(results) do
+            if not seenAll[data.Key] then
+                seenAll[data.Key]=true
+                sendWebhook(data)
+            end
+        end
+        task.wait(WEBHOOK_REFRESH)
+    end
+end)
+
+local lastAttemptJobId,lastFailAt,lastTeleportAt=nil,0,0
+
+local function nextServer()
+    local ok,res=pcall(function()
+        return HttpService:JSONDecode(requestSafe({Url=BACKEND_URL.."next",Method="POST",Headers={["Content-Type"]="application/json"},Body=HttpService:JSONEncode({placeId=game.PlaceId,currentJob=game.JobId,minPlayers=MIN_PLAYERS})}).Body)
     end)
-    if ok then print("[TP] Teleport started", nowts()) return true end
-    warn("[TP-FAIL]", res, nowts())
-    return false
+    if ok and res and res.job then return tostring(res.job) end
+    return nil
+end
+
+local function releaseKey(serverId)
+    if not serverId then return end
+    pcall(function() requestSafe({Url=BACKEND_URL.."release",Method="POST",Headers={["Content-Type"]="application/json"},Body=HttpService:JSONEncode({placeId=game.PlaceId,key=tostring(serverId})}) end)
+end
+
+local function tryTeleportTo(jobId)
+    lastAttemptJobId=tostring(jobId)
+    local ok,_=pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId,lastAttemptJobId,LocalPlayer) end)
+    lastTeleportAt=os.clock()
+    if not ok then releaseKey(lastAttemptJobId) return false end
+    task.spawn(function()
+        local start=os.clock()
+        task.wait(TP_STUCK_TIMEOUT)
+        if lastFailAt<start then
+            local nid=nextServer()
+            if nid then tryTeleportTo(nid) end
+        end
+    end)
+    return true
 end
 
 TeleportService.TeleportInitFailed:Connect(function()
-    print("[TP-FAIL-EVENT]", nowts())
-    lastFailAt = os.clock()
-    if lastAttemptJobId then ReleaseJobId(lastAttemptJobId) end
+    lastFailAt=os.clock()
+    if lastAttemptJobId then releaseKey(lastAttemptJobId) end
     task.wait(0.6)
-    local nextId = GetNextJobId()
+    local nextId=nextServer()
     if nextId then tryTeleportTo(nextId) end
 end)
 
-shared.__QUESAID_LAST_MARKED__ = shared.__QUESAID_LAST_MARKED__ or nil
 local function markJoinedOnce()
-    local jid = tostring(game.JobId)
-    if shared.__QUESAID_LAST_MARKED__ == jid then return end
-    shared.__QUESAID_LAST_MARKED__ = jid
-    task.delay(2, function()
-        print("[JOIN-MARK]", jid, nowts())
-        DoRequest({ Url = BASE_URL.."/joined", Method = "POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({ placeId=game.PlaceId, serverId=jid }) })
+    local jid=tostring(game.JobId)
+    if shared.__QUESAID_LAST_MARKED__==jid then return end
+    shared.__QUESAID_LAST_MARKED__=jid
+    task.delay(2,function()
+        pcall(function() requestSafe({Url=BACKEND_URL.."joined",Method="POST",Headers={["Content-Type"]="application/json"},Body=HttpService:JSONEncode({placeId=game.PlaceId,serverId=jid})}) end)
     end)
 end
-coroutine.wrap(function()
-    if not game:IsLoaded() then game.Loaded:Wait() end
-    markJoinedOnce()
-end)()
 
+task.spawn(function() if not game:IsLoaded() then game.Loaded:Wait() end markJoinedOnce() end)
 Players.LocalPlayer.CharacterAdded:Connect(markJoinedOnce)
-
-coroutine.wrap(function()
-    local last = nil
-    while true do
-        local jid = tostring(game.JobId)
-        if jid ~= last then last = jid; markJoinedOnce() end
-        task.wait(5)
-    end
-end)()
-
-coroutine.wrap(function()
-    if not game:IsLoaded() then game.Loaded:Wait() end
-    task.wait(1)
-    print("[MAIN-SCAN]", nowts())
-    local best = GetBestBrainrots()
-    if best and best[1] then
-        print("[MAIN-BEST]", best[1].Name, best[1].RealAmount, best[1].Amount, nowts())
-        SendBrainrotWebhook(best[1])
-    else
-        print("[MAIN-NONE]", nowts())
-    end
-    coroutine.wrap(function()
-        coroutine.wrap(function()
-            while task.wait(2.5 + math.random() * 0.5) do
-                local nid
-                nid = GetNextJobId()
-                if not nid or #nid <= 10 or nid == game.JobId then
-                    task.wait(1.0 + math.random() * 0.4)
-                end
-                local jitterDelay = 0.25 + math.random() * 0.75
-                task.wait(jitterDelay)
-                local success = tryTeleportTo(nid)
-                if success then
-                    break
-                else
-                    task.wait(2.0 + math.random() * 0.5)
-                end
-            end
-        end)()
-    end)()
-end)()
