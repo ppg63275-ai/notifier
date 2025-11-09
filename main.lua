@@ -260,51 +260,71 @@ local function shortMoney(v)
         return string.format("$%d/s", math.floor(v))
     end
 end
-local function singleScan(m)
-    if not m:IsA("Model") then return nil, nil end
+local function singleScan()
+	local results = {}
+	local seen = {}
 
-    local ok, _, size = pcall(m.GetBoundingBox, m)
-    if not ok or not size or size.Magnitude > MODEL_MAX_SIZE then
-        return nil, nil
-    end
+	for _, m in ipairs(workspace:GetDescendants()) do
+		if m:IsA("Model") then
+			local displayName, generation
 
-    local bestName, bestMPS
+			for _, gui in ipairs(m:GetDescendants()) do
+				if gui:IsA("BillboardGui") then
+					for _, t in ipairs(gui:GetDescendants()) do
+						if t:IsA("TextLabel") then
+							if t.Name == "DisplayName" then
+								displayName = t.Text
+							elseif t.Name == "Generation" then
+								generation = parseMPS(t.Text or "")
+							end
+						end
+					end
+				end
+			end
 
-    for _, gui in ipairs(m:GetDescendants()) do
-        if gui:IsA("BillboardGui") then
-            for _, t in ipairs(gui:GetDescendants()) do
-                if t:IsA("TextLabel") then
-                    if t.Name == "DisplayName" then
-                        bestName = t.Text
-                    elseif t.Name == "Generation" then
-                        bestMPS = parseMPS(t.Text or "")
-                    end
-                end
-            end
-        end
-    end
+			if generation and generation > 0 then
+				local name = displayName or m.Name
+				local key = string.format("%s|%s|%d", game.JobId, name, math.floor(generation))
+				if not seen[key] then
+					seen[key] = true
+					table.insert(results, { Name = name, MPS = generation, Key = key })
+				end
+			end
+		end
+	end
 
-    if not bestName or bestName == "" then
-        bestName = m.Name
-    end
-
-    return bestName, bestMPS
+	return results
 end
 
-local function scanModel(m)
-    for i = 1, 5 do
-        local name, mps = singleScan(m)
-        if name and mps and mps > 0 then
-            print(string.format("[SCAN-TRY-%d] Found '%s' (%s)", i, name, shortMoney(mps)))
-            return name, mps
-        else
-            print(string.format("[SCAN-TRY-%d] Failed, retrying...", i))
-            if i < 5 then task.wait(0.3) end
-        end
-    end
-    return nil, nil
+local function scanModel()
+	local combined = {}
+	local seenAll = {}
+
+	for i = 1, 5 do
+		local batch = singleScan()
+		local added = 0
+
+		for _, b in ipairs(batch) do
+			if not seenAll[b.Key] then
+				seenAll[b.Key] = true
+				table.insert(combined, b)
+				added += 1
+			end
+		end
+
+		print(string.format("[SCAN-TRY-%d] Found %d new (total %d)", i, added, #combined))
+		if i < 5 then
+			task.wait(0.3)
+		end
+	end
+
+	table.sort(combined, function(a, b)
+		return a.MPS > b.MPS
+	end)
+
+	return combined
 end
-    local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
+local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 local function sendToAPI(name, value)
     pcall(function()
         request({
@@ -454,36 +474,29 @@ local seenAll = {}
 
 task.spawn(function()
 	while true do
-		local combined = {}
+		local results = scanModel()
 
-		for _, m in ipairs(workspace:GetDescendants()) do
-			local name, mps = scanModel(m)
-			if name and mps and mps > 0 then
-				local key = string.format("%s|%s|%d", game.JobId, name, math.floor(mps))
+		if #results > 0 then
+			print(string.format("[SCAN] Found %d total models", #results))
 
+			for _, data in ipairs(results) do
+				local key = data.Key
 				if not seenAll[key] then
 					seenAll[key] = true
-					table.insert(combined, { Name = name, MPS = mps, Key = key })
-				end
-			end
-		end
+					print(string.format(" - %s | %s", data.Name, shortMoney(data.MPS)))
 
-		if #combined > 0 then
-			print(string.format("[SCAN] Found %d new models:", #combined))
-			for _, m in ipairs(combined) do
-				print(string.format(" - Name: %s | MPS: %s | Key: %s", m.Name, shortMoney(m.MPS), m.Key))
+					if not sentKeys[key] then
+						sentKeys[key] = true
 
-				if not sentKeys[m.Key] then
-					sentKeys[m.Key] = true
+						sendWebhook(data.Name, data.MPS)
 
-					sendWebhook(m.Name, m.MPS)
+						if data.MPS > 50_000_000 then
+							addToBatch({ Name = data.Name, Amount = data.MPS, Key = key })
+						end
 
-					if m.MPS > 50_000_000 then
-						addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key })
-					end
-
-					if m.MPS > 1_000_000 then
-						sendToAPI(m.Name, m.MPS)
+						if data.MPS > 1_000_000 then
+							sendToAPI(data.Name, data.MPS)
+						end
 					end
 				end
 			end
