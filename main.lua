@@ -90,7 +90,7 @@ local function sendWebhook(b)
 end
 
 local function singleScan()
-    local results={},seen={}
+    local results, seen = {}, {}
     for _,plot in ipairs(Plots:GetChildren()) do
         for _,v in ipairs(plot:GetDescendants()) do
             if v.Name=="Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
