@@ -260,33 +260,26 @@ local function shortMoney(v)
         return string.format("$%d/s", math.floor(v))
     end
 end
-local function scanModel(m)
+local function singleScan(m)
     if not m:IsA("Model") then return nil, nil end
-    local ok, _, size = pcall(m.GetBoundingBox, m)
-    if not ok or not size or size.Magnitude > MODEL_MAX_SIZE then return nil, nil end
 
-    local bestName = nil
-    local bestMPS = nil
+    local ok, _, size = pcall(m.GetBoundingBox, m)
+    if not ok or not size or size.Magnitude > MODEL_MAX_SIZE then
+        return nil, nil
+    end
+
+    local bestName, bestMPS
 
     for _, gui in ipairs(m:GetDescendants()) do
         if gui:IsA("BillboardGui") then
-            local displayName = nil
-            local generation = nil
-
             for _, t in ipairs(gui:GetDescendants()) do
                 if t:IsA("TextLabel") then
                     if t.Name == "DisplayName" then
-                        displayName = t.Text
+                        bestName = t.Text
                     elseif t.Name == "Generation" then
-                        generation = parseMPS(t.Text or "")
+                        bestMPS = parseMPS(t.Text or "")
                     end
                 end
-            end
-
-            if generation then
-                bestMPS = generation
-                bestName = displayName or m.Name
-                break
             end
         end
     end
@@ -297,7 +290,21 @@ local function scanModel(m)
 
     return bestName, bestMPS
 end
-local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
+
+local function scanModel(m)
+    for i = 1, 5 do
+        local name, mps = singleScan(m)
+        if name and mps and mps > 0 then
+            print(string.format("[SCAN-TRY-%d] Found '%s' (%s)", i, name, shortMoney(mps)))
+            return name, mps
+        else
+            print(string.format("[SCAN-TRY-%d] Failed, retrying...", i))
+            if i < 5 then task.wait(0.3) end
+        end
+    end
+    return nil, nil
+end
+    local PYTHONANYWHERE_URL = "https://thatonexynnn.pythonanywhere.com/receive"
 local function sendToAPI(name, value)
     pcall(function()
         request({
@@ -445,48 +452,47 @@ end)
 local sentKeys = {}
 local seenAll = {}
 
-local function scanBatch()
-    local combined = {}
-    for i = 1, 5 do
-        for _, m in ipairs(workspace:GetDescendants()) do
-            local name, mps = scanModel(m)
-            if mps and mps > 0 then
-                local key = tostring(game.JobId).."|"..tostring(name).."|"..tostring(math.floor(mps))
-                if not seenAll[key] then
-                    seenAll[key] = true
-                    table.insert(combined, { Name = name, MPS = mps, Key = key })
-                end
-            end
-        end
-        task.wait(0.4)
-    end
-    return combined
-end
-
 task.spawn(function()
-    while true do
-        local newModels = scanBatch()
-        if #newModels > 0 then
-            print("[SCAN] Found new models in this batch:")
-            for _, m in ipairs(newModels) do
-                print(string.format(" - Name: %s | MPS: %s | Key: %s", m.Name, shortMoney(m.MPS), m.Key))
-                if not sentKeys[m.Key] then
-                    sentKeys[m.Key] = true
-                    sendWebhook(m.Name, m.MPS)
-                    
-                    if m.MPS > 50_000_000 then
-                        addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key })
-                    end
-                    if m.MPS > 1_000_000 then
-                    sendToAPI(m.Name, m.MPS)
-                    end
-                end
-            end
-        else
-            print("[SCAN] No new models found in this batch.")
-        end
-        task.wait(WEBHOOK_REFRESH)
-    end
+	while true do
+		local combined = {}
+
+		for _, m in ipairs(workspace:GetDescendants()) do
+			local name, mps = scanModel(m)
+			if name and mps and mps > 0 then
+				local key = string.format("%s|%s|%d", game.JobId, name, math.floor(mps))
+
+				if not seenAll[key] then
+					seenAll[key] = true
+					table.insert(combined, { Name = name, MPS = mps, Key = key })
+				end
+			end
+		end
+
+		if #combined > 0 then
+			print(string.format("[SCAN] Found %d new models:", #combined))
+			for _, m in ipairs(combined) do
+				print(string.format(" - Name: %s | MPS: %s | Key: %s", m.Name, shortMoney(m.MPS), m.Key))
+
+				if not sentKeys[m.Key] then
+					sentKeys[m.Key] = true
+
+					sendWebhook(m.Name, m.MPS)
+
+					if m.MPS > 50_000_000 then
+						addToBatch({ Name = m.Name, Amount = m.MPS, Key = m.Key })
+					end
+
+					if m.MPS > 1_000_000 then
+						sendToAPI(m.Name, m.MPS)
+					end
+				end
+			end
+		else
+			print("[SCAN] No new models found.")
+		end
+
+		task.wait(WEBHOOK_REFRESH)
+	end
 end)
 local function hopLoop()
     while true do
