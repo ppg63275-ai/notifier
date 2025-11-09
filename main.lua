@@ -109,7 +109,7 @@ local function singleScan()
 end
 
 local function scanModel()
-    local combined={},seenAll={}
+    local combined, seenAll = {}, {}
     for i=1,5 do
         local batch=singleScan()
         local added=0
