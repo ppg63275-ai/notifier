@@ -142,7 +142,9 @@ local function singleScan()
     for _, plot in ipairs(Plots:GetChildren()) do
         for _, v in ipairs(plot:GetDescendants()) do
             if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
-                local amt = tonumber(v.Text:gsub(",",""):gsub("%$",""):gsub("/s","")) or 0
+                local rawText = tostring(v.Text or "")
+                local cleanText = rawText:gsub("[^%d%.]", "")
+                local amt = tonumber(cleanText) or 0
                 if amt > 0 then
                     local spawn = v.Parent.Parent.Parent
                     local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
