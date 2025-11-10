@@ -243,14 +243,22 @@ end
 task.spawn(function()
 	if not game:IsLoaded() then game.Loaded:Wait() end
 	local results = scanModel()
+
 	if #results > 0 then
-		for _, data in ipairs(results) do
+		print(string.rep("-", 50))
+		print("results :")
+		for i, data in ipairs(results) do
+			print(string.format("[%02d] %s — %s", i, data.Name, shortMoney(data.Amount)))
 			if not seenAll[data.Key] then
 				seenAll[data.Key] = true
 				sendWebhook(data)
 			end
 		end
+		print(string.rep("-", 50))
+	else
+		print("No Brainrots found after 5 scans.")
 	end
+
 	task.wait(WEBHOOK_REFRESH)
 end)
 task.spawn(function()
