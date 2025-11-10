@@ -113,46 +113,70 @@ local function sendWebhook(b)
 		})
 	end)
 end
+local function scanModel()
+	print("[SCAN-START]", os.time())
 
-local function singleScan()
-	local results, seen = {}, {}
-	for _, plot in ipairs(Plots:GetChildren()) do
-		for _, v in ipairs(plot:GetDescendants()) do
-			if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
-				local text = tostring(v.Text or "")
-				text = text:gsub("[,%$]", ""):gsub("/s", "")
-				local amt = tonumber(text) or 0
-				if amt > 0 then
-					local spawn = v.Parent and v.Parent.Parent and v.Parent.Parent.Parent
-					local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
-					local key = spawn and (spawn:GetAttribute("BrainrotId") or HttpService:GenerateGUID(false)) or (disp .. ":" .. v.Parent.Parent:GetFullName())
-					if spawn and not spawn:GetAttribute("BrainrotId") then spawn:SetAttribute("BrainrotId", key) end
-					if not seen[key] then
-						seen[key] = true
-						table.insert(results, { Name = disp, Amount = amt, Key = key })
+	local function singleScan()
+		local found, seen = {}, {}
+		for _, plot in ipairs(Plots:GetChildren()) do
+			for _, v in ipairs(plot:GetDescendants()) do
+				if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
+					local raw = v.Text
+					local text = tostring(raw or ""):gsub("[,%$]", ""):gsub("/s", "")
+					local amt = tonumber(text) or 0
+					if amt > 0 then
+						local spawn = v.Parent.Parent.Parent
+						local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
+						local key
+						if spawn then
+							key = spawn:GetAttribute("BrainrotId")
+							if not key then
+								key = HttpService:GenerateGUID(false)
+								spawn:SetAttribute("BrainrotId", key)
+							end
+						else
+							key = disp .. ":" .. v.Parent.Parent:GetFullName()
+						end
+						if not seen[key] then
+							seen[key] = true
+							table.insert(found, {
+								Name = disp,
+								Amount = amt,
+								RealAmount = raw,
+								Key = key
+							})
+							print("[SCAN-FIND]", disp, raw, amt, key, os.time())
+						end
 					end
 				end
 			end
 		end
+		return found
 	end
-	return results
-end
 
-local function scanModel()
 	local combined, seenAll = {}, {}
+
 	for i = 1, 5 do
 		local batch = singleScan()
+		local added = 0
 		for _, b in ipairs(batch) do
 			if not seenAll[b.Key] then
 				seenAll[b.Key] = true
 				table.insert(combined, b)
+				added += 1
 			end
 		end
-		task.wait(0.3)
+		print(string.format("[SCAN-TRY-%d] Found %d new (total %d)", i, added, #combined))
+		if i < 5 then task.wait(0.3) end
 	end
-	table.sort(combined, function(a, b) return a.Amount > b.Amount end)
+
+	table.sort(combined, function(a, b)
+		return a.Amount > b.Amount
+	end)
+	print("[SCAN-END]", #combined, os.time())
+
 	return combined
-end
+	end
 local lastAttemptJobId, lastFailAt = nil, 0
 local lastTeleportAt = 0
 local function nextServer()
