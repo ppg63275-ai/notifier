@@ -1,3 +1,4 @@
+-- hi
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
@@ -154,14 +155,6 @@ local function scanModel()
 end
 local lastAttemptJobId, lastFailAt = nil, 0
 local lastTeleportAt = 0
-
-TeleportService.TeleportInitFailed:Connect(function()
-    lastFailAt = os.clock()
-    if lastAttemptJobId then task.spawn(releaseKey, lastAttemptJobId) end
-    task.wait(0.6)
-    local nextId = nextServer()
-    if nextId then tryTeleportTo(nextId) end
-end)
 local function nextServer()
 	local ok, res = pcall(function()
 		local r = requestSafe({
@@ -198,7 +191,13 @@ local function releaseKey(serverId)
 		})
 	end)
 end
-
+TeleportService.TeleportInitFailed:Connect(function()
+    lastFailAt = os.clock()
+    if lastAttemptJobId then task.spawn(releaseKey, lastAttemptJobId) end
+    task.wait(0.6)
+    local nextId = nextServer()
+    if nextId then tryTeleportTo(nextId) end
+end)
 local function jitter()
     local j = math.random(math.floor(TP_JITTER_MIN_S*1000), math.floor(TP_JITTER_MAX_S*1000))/1000
     task.wait(j)
