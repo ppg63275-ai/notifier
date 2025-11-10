@@ -284,9 +284,6 @@ task.spawn(function()
 
 	task.wait(WEBHOOK_REFRESH)
 end)
-game:GetService('TextChatService').TextChannels.RBXGeneral:SendAsync('💥 wonder where people steal good brainrots? 😈')
-task.wait(0.2)
-game:GetService('TextChatService').TextChannels.RBXGeneral:SendAsync('join this vanity rn‼️ 💎 .🅶🅶/🅽🅾🆅🅰🅽🅾🆃🅸🅵🅸🅴🆁')
 task.spawn(function()
     if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
     task.wait(0.8 + math.random(200,800)/1000)
