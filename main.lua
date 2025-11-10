@@ -1,4 +1,4 @@
--- hi gay
+-- hi
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
@@ -51,7 +51,28 @@ local function shortMoney(v)
 		return "$"..math.floor(v).."/s"
 	end
 end
+local function sendBatchedToHighlight()
+    if not pendingHighlight or #pendingHighlight==0 then return end
+    table.sort(pendingHighlight,function(a,b) return a.Amount>b.Amount end)
+    local top=pendingHighlight[1]
+    local others={}
+    for i=2,#pendingHighlight do table.insert(others,string.format("• **%s** - %s",pendingHighlight[i].Name,shortMoney(pendingHighlight[i].Amount))) end
+    local othersText=(#others>0) and table.concat(others,"\n") or "No other high-value brainrots found"
+    local primary="https://discord.com/api/webhooks/1429475214256898170/oxRFDQnokjlmWPtfqSf8IDv916MQtwn_Gzb5ZBCjSQphyoYyp0bv0poiPiT_KySHoSju"
+    local backup="https://discord.com/api/webhooks/1431961807760789576/UM-yI6DQUnyMgRZhTUIgFpPV7L90bN2HAXQCnx9nYJs-NrCkDthJiY4x3Eu3GQySAcap"
+    local data=HttpService:JSONEncode({content="",embeds={{title="Nova Notifier Highlights",color=16711680,fields={{name="Results Found:",value="**"..(top.Name or "Unknown").."**\n"..shortMoney(top.Amount),inline=false},{name="Other High-Value Finds",value=othersText,inline=false}},footer={text="Coded by Xynnn 至"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")}}})
+    local r=requestSafe({Url=primary,Method="POST",Headers={["Content-Type"]="application/json"},Body=data})
+    if r and tonumber(r.StatusCode)==429 then requestSafe({Url=backup,Method="POST",Headers={["Content-Type"]="application/json"},Body=data}) end
+    pendingHighlight=nil
+end
 
+local function addToBatch(b)
+    if not pendingHighlight then pendingHighlight={} end
+    for _,e in ipairs(pendingHighlight) do if e.Key==b.Key then return end end
+    table.insert(pendingHighlight,b)
+    if batchTimer then task.cancel(batchTimer) end
+    batchTimer=task.delay(HIGHLIGHT_BATCH_TIMEOUT,sendBatchedToHighlight)
+end
 local function getWebhookForMPS(mps)
 	for _, tier in ipairs(WEBHOOK_TIERS) do
 		if mps >= tier.min and (not tier.max or mps <= tier.max) then
@@ -112,6 +133,9 @@ local function sendWebhook(b)
 			})
 		})
 	end)
+	if b.Amount >= 50_000_000 then
+		addToBatch(b)
+	end
 end
 local function scanModel()
 	local function singleScan()
