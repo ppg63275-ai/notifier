@@ -1,4 +1,4 @@
--- hi
+-- hi gay
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
@@ -6,7 +6,7 @@ local Plots = workspace:WaitForChild("Plots")
 local LocalPlayer = Players.LocalPlayer
 local BACKEND_URL = "http://127.0.0.1:5000/"
 local MIN_PLAYERS = 1
-local WEBHOOK_REFRESH = 0.2
+local WEBHOOK_REFRESH = 0.15
 local HIGHLIGHT_BATCH_TIMEOUT = 3
 local TP_MIN_GAP_S = 1
 local TP_JITTER_MIN_S = 0.5
@@ -91,7 +91,7 @@ local function sendWebhook(b)
             { name = "**🌐Join Link**", value = "[**Click to Join**](" .. browserLink .. ")", inline = false },
             { name = "**📜Join Script (PC)**", value = "```" .. joinScript .. "```", inline = false },           
 		},
-		footer = { text = "Made by  Xynnn 至"..os.date("%H:%M:%S") }
+		footer = { text = "Made by  Xynnn 至 • "..os.date("%H:%M:%S") }
 	}
 
 	requestSafe({
@@ -114,19 +114,39 @@ local function sendWebhook(b)
 	end)
 end
 local function scanModel()
-	print("[SCAN-START]", os.time())
-
 	local function singleScan()
 		local found, seen = {}, {}
-		for _, plot in ipairs(Plots:GetChildren()) do
-			for _, v in ipairs(plot:GetDescendants()) do
+		local plots = Plots:GetChildren()
+
+		for _, plot in ipairs(plots) do	
+			local descendants = plot:GetDescendants()
+			for _, v in ipairs(descendants) do
 				if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
 					local raw = v.Text
-					local text = tostring(raw or ""):gsub("[,%$]", ""):gsub("/s", "")
-					local amt = tonumber(text) or 0
+					local cleaned = tostring(raw or "")
+						:gsub("%$", "")
+						:gsub(",", "")
+						:gsub("%/s", "")
+						:gsub("%s+", "")
+
+					local num, suffix = cleaned:match("([%d%.]+)([KMBkmb]?)")
+					local amt = tonumber(num)
+					if amt then
+						if suffix == "K" or suffix == "k" then
+							amt *= 1e3
+						elseif suffix == "M" or suffix == "m" then
+							amt *= 1e6
+						elseif suffix == "B" or suffix == "b" then
+							amt *= 1e9
+						end
+					else
+						amt = 0
+					end
+
 					if amt > 0 then
-						local spawn = v.Parent.Parent.Parent
+						local spawn = v.Parent.Parent and v.Parent.Parent.Parent
 						local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
+
 						local key
 						if spawn then
 							key = spawn:GetAttribute("BrainrotId")
@@ -137,6 +157,7 @@ local function scanModel()
 						else
 							key = disp .. ":" .. v.Parent.Parent:GetFullName()
 						end
+
 						if not seen[key] then
 							seen[key] = true
 							table.insert(found, {
@@ -145,7 +166,6 @@ local function scanModel()
 								RealAmount = raw,
 								Key = key
 							})
-							print("[SCAN-FIND]", disp, raw, amt, key, os.time())
 						end
 					end
 				end
@@ -159,6 +179,7 @@ local function scanModel()
 	for i = 1, 5 do
 		local batch = singleScan()
 		local added = 0
+
 		for _, b in ipairs(batch) do
 			if not seenAll[b.Key] then
 				seenAll[b.Key] = true
@@ -166,17 +187,20 @@ local function scanModel()
 				added += 1
 			end
 		end
+
 		print(string.format("[SCAN-TRY-%d] Found %d new (total %d)", i, added, #combined))
-		if i < 5 then task.wait(0.3) end
+		if i < 5 then
+			task.wait(0.3)
+		end
 	end
 
 	table.sort(combined, function(a, b)
 		return a.Amount > b.Amount
 	end)
-	print("[SCAN-END]", #combined, os.time())
 
 	return combined
-	end
+end
+
 local lastAttemptJobId, lastFailAt = nil, 0
 local lastTeleportAt = 0
 local function nextServer()
