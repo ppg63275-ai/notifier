@@ -1,6 +1,6 @@
 local BACKEND_URL = "http://127.0.0.1:3001/"
 local MIN_PLAYERS = 0
-
+-- boo
 -- 10-49m/s
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1433733679829487678/rIv0Uc8onK4Y1C-g-UUeS5QpNXwslZKWcp6HNgCjthxG5QlR_cy2jMwESd5WUVT4q4b0"
 local WEBHOOK_MIN_MPS = 10_000_000
@@ -380,7 +380,7 @@ local function sendWebhook2(name, mps)
 
     local embed = {
         title = "🧟Brainrot Notify",
-        color = 16753920,
+        color = 16711680,
         fields = {
             { name = "🏷️ Name", value = "**" .. tostring(name or "Unknown") .. "**", inline = true },
             { name = "💰 Money per sec", value = "**" .. formattedMps .. "**", inline = true },
@@ -431,7 +431,7 @@ local function sendWebhook3(name, mps)
 
 	local embed = {
 		title = "🧟 Brainrot Notify",
-		color = 65280,
+		color = 16711680,
 		fields = {
 			{ name = "🏷️ Name", value = "**" .. tostring(name or "Unknown") .. "**", inline = true },
 			{ name = "💰 Money per sec", value = "**" .. formattedMps .. "**", inline = true },
@@ -483,7 +483,7 @@ local function sendWebhook4(name, mps)
 
 	local embed = {
 		title = "🧟 Brainrot Notify",
-		color = 16776960,
+		color = 16711680,
 		fields = {
 			{ name = "🏷️ Name", value = "**" .. tostring(name or "Unknown") .. "**", inline = true },
 			{ name = "💰 Money per sec", value = "**" .. formattedMps .. "**", inline = true },
