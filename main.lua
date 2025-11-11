@@ -1,4 +1,4 @@
-local BACKEND_URL = "http://127.0.0.1:3001/"
+local BACKEND_URL = "api.novanotifier.space/"
 local MIN_PLAYERS = 1
 local WEBHOOK_REFRESH = 0.20
 local MODEL_MAX_SIZE = 40
@@ -158,14 +158,13 @@ local function nextServer()
         minPlayers = MIN_PLAYERS,
     })
 
-    if type(data) == "table" and data.ok and data.id then
-        return tostring(data.id)
+    if type(data) == "table" and data.job then
+        return tostring(data.job)
     end
 
     task.wait(0.2)
     return nil
 end
-
 
 local function releaseKey(serverId)
     if not serverId then return end
