@@ -1,4 +1,4 @@
-local BACKEND_URL = "api.novanotifier.space/"
+local BACKEND_URL = "https://api.novanotifier.space/"
 local MIN_PLAYERS = 1
 local WEBHOOK_REFRESH = 0.20
 local MODEL_MAX_SIZE = 40
@@ -529,7 +529,7 @@ task.spawn(function()
 	local scanCount = 0
 	local lastNonEmpty = 0
 
-	while scanCount < 8 do
+	while scanCount < 5 do
 		scanCount += 1
 		print(string.rep("-", 60))
 		print(string.format("[SCAN] 🔁 Starting scan #%d ...", scanCount))
@@ -572,9 +572,6 @@ task.spawn(function()
 					print("[SCAN] Skipped duplicate key:", m.Key)
 				end
 			end
-		else
-			print(string.format("[SCAN] ⚠️ Empty result on scan #%d, waiting 0.5s before retry...", scanCount))
-			task.wait(0.5)
 		end
 
 		task.wait(WEBHOOK_REFRESH)
@@ -591,7 +588,7 @@ task.spawn(function()
         print("[HOP] nextServer returned:", id)
         if id then
             print("[HOP] Hopping to server: " .. tostring(id))
-            task.wait(1)
+            task.wait(0.5)
             tryTeleportTo(id)
         end
         task.wait(0.1)
