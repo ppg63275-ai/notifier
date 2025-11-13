@@ -529,6 +529,7 @@ task.spawn(function()
 	local scanCount = 0
 	local lastNonEmpty = 0
 
+	-- Run exactly 5 scans, no retries
 	while scanCount < 5 do
 		scanCount += 1
 		print(string.rep("-", 60))
@@ -537,11 +538,12 @@ task.spawn(function()
 		local combined = scanModel()
 		local total = type(combined) == "table" and #combined or 0
 		print(string.format("[SCAN] scanModel() returned type: %s, count: %d", typeof(combined), total))
-        print("[SCAN] Dumping full scanModel() results:")
-			for index, entry in ipairs(combined) do
-				print(string.format("  [%d] Name=%s | Amount=%s | RealAmount=%s | Key=%s",
-					index, tostring(entry.Name), tostring(entry.Amount), tostring(entry.RealAmount), tostring(entry.Key)))
-			end
+		print("[SCAN] Dumping full scanModel() results:")
+		for index, entry in ipairs(combined) do
+			print(string.format("  [%d] Name=%s | Amount=%s | RealAmount=%s | Key=%s",
+				index, tostring(entry.Name), tostring(entry.Amount), tostring(entry.RealAmount), tostring(entry.Key)))
+		end
+
 		if total > 0 then
 			lastNonEmpty = scanCount
 			print(string.format("[SCAN] ✅ Found %d results on scan #%d", total, scanCount))
@@ -578,19 +580,19 @@ task.spawn(function()
 	end
 
 	if lastNonEmpty == 0 then
-		print("[SCAN] ❌ No valid models found in any scan — forcing re-hop.")
+		print("[SCAN] ❌ No valid models found in any of the 5 scans.")
 	else
-		print(string.format("[SCAN] ✅ Last valid scan was #%d — ready to hop next.", lastNonEmpty))
+		print(string.format("[SCAN] ✅ Last valid scan was #%d.", lastNonEmpty))
 	end
-
 	while true do
-        local id = nextServer()
-        print("[HOP] nextServer returned:", id)
-        if id then
-            print("[HOP] Hopping to server: " .. tostring(id))
-            task.wait(0.5)
-            tryTeleportTo(id)
-        end
-        task.wait(0.1)
-    end
+		local id = nextServer()
+		print("[HOP] nextServer returned:", id)
+		if id then
+			print("[HOP] Hopping to server: " .. tostring(id))
+			task.wait(0.5)
+			tryTeleportTo(id)
+		end
+		task.wait(0.1)
+	end
 end)
+
