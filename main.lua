@@ -204,7 +204,7 @@ local function GetNextJobId()
         Headers = { ["Content-Type"] = "application/json" },
         Body = HttpService:JSONEncode({
             currentJob = game.JobId,
-            minPlayers = 6
+            minPlayers = 4
         })
     })
     if not res then return nil end
