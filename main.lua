@@ -204,7 +204,7 @@ local function GetNextJobId()
         Headers = { ["Content-Type"] = "application/json" },
         Body = HttpService:JSONEncode({
             currentJob = game.JobId,
-            minPlayers = 4
+            minPlayers = 6
         })
     })
     if not res then return nil end
@@ -293,30 +293,36 @@ coroutine.wrap(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
     task.wait(1)
     print("[MAIN-SCAN]", nowts())
+
     local best = GetBestBrainrots()
     if best and best[1] then
         print("[MAIN-BEST]", best[1].Name, best[1].RealAmount, best[1].Amount, nowts())
-        SendBrainrotWebhook(best[1])
     else
         print("[MAIN-NONE]", nowts())
+    end
+    local monitorDuration = math.random(10,20)
+    local startTime = tick()
+    local lastHighest = best[1] and best[1].Amount or 0
+
+    while tick() - startTime < monitorDuration do
+        task.wait(0.5)
+        local current = GetBestBrainrots()
+        if current and current[1] and current[1].Amount > lastHighest then
+            print("[MONITOR-NEW-BEST]", current[1].Name, current[1].RealAmount, current[1].Amount, nowts())
+            lastHighest = current[1].Amount
+            SendBrainrotWebhook(current[1])
+        end
     end
     coroutine.wrap(function()
         while task.wait(0.5) do
             local nid = GetNextJobId()
-
             if not nid or #nid <= 10 or nid == game.JobId then
                 task.wait(1.0 + math.random() * 0.4)
             end
-
             local jitterDelay = 0.25 + math.random() * 0.75
             task.wait(jitterDelay)
-
             local success = tryTeleportTo(nid)
-            if success then
-                break
-            else
-                task.wait(1.0 + math.random() * 0.5)
-            end
+            if success then break end
         end
     end)()
 end)()
