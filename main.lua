@@ -4,7 +4,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Plots = workspace:WaitForChild("Plots")
 local GLOBAL = getgenv and getgenv() or _G
-
+-- e
 local function nowts() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
 
 local function DoRequest(opt)
@@ -45,7 +45,6 @@ local function toNumber(str)
     local n = tonumber(s)
     return n and (n * m) or 0
 end
-
 local function GetBestBrainrots()
     print("[SCAN-START]", nowts())
 
@@ -83,8 +82,14 @@ local function GetBestBrainrots()
 
     local combined, seenAll = {}, {}
 
-    for i = 1, 5 do
+    local scanDuration = math.random(5, 10)
+    local startTime = os.clock()
+
+    local scanCount = 0
+    while os.clock() - startTime < scanDuration do
         local batch = singleScan()
+        scanCount += 1
+
         local added = 0
         for _, b in ipairs(batch) do
             if not seenAll[b.Key] then
@@ -93,8 +98,9 @@ local function GetBestBrainrots()
                 added += 1
             end
         end
-        print(string.format("[SCAN-TRY-%d] Found %d new (total %d)", i, added, #combined))
-        if i < 5 then task.wait(0.3) end
+
+        print(string.format("[SCAN-%d] %d new (total %d)", scanCount, added, #combined))
+        task.wait(0.1)
     end
 
     table.sort(combined, function(a, b) return a.Amount > b.Amount end)
@@ -102,8 +108,6 @@ local function GetBestBrainrots()
 
     return combined
 end
-
-
 
 local function formatAmount(amount)
     if amount >= 1e9 then
