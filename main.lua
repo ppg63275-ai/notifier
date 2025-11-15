@@ -4,7 +4,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Plots = workspace:WaitForChild("Plots")
 local GLOBAL = getgenv and getgenv() or _G
--- yello
+
 local function nowts() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
 
 local function DoRequest(opt)
@@ -20,7 +20,8 @@ local function DoRequest(opt)
     if request then
         local res = _safe_call(request, opt)
         if res then return res end
-    end    if http_request then
+    end
+    if http_request then
         local res = _safe_call(http_request, opt)
         if res then return res end
     end
@@ -44,6 +45,65 @@ local function toNumber(str)
     local n = tonumber(s)
     return n and (n * m) or 0
 end
+
+local function GetBestBrainrots()
+    print("[SCAN-START]", nowts())
+
+    local function singleScan()
+        local found, seen = {}, {}
+        for _, plot in ipairs(Plots:GetChildren()) do
+            for _, v in ipairs(plot:GetDescendants()) do
+                if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
+                    local raw = v.Text
+                    local amt = toNumber(raw)
+                    if amt > 0 then
+                        local spawn = v.Parent.Parent.Parent
+                        local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
+                        local key
+                        if spawn then
+                            key = spawn:GetAttribute("BrainrotId")
+                            if not key then
+                                key = HttpService:GenerateGUID(false)
+                                spawn:SetAttribute("BrainrotId", key)
+                            end
+                        else
+                            key = disp .. ":" .. v.Parent.Parent:GetFullName()
+                        end
+                        if not seen[key] then
+                            seen[key] = true
+                            table.insert(found, { Name = disp, Amount = amt, RealAmount = raw, Key = key })
+                            print("[SCAN-FIND]", disp, raw, amt, key, nowts())
+                        end
+                    end
+                end
+            end
+        end
+        return found
+    end
+
+    local combined, seenAll = {}, {}
+
+    for i = 1, 5 do
+        local batch = singleScan()
+        local added = 0
+        for _, b in ipairs(batch) do
+            if not seenAll[b.Key] then
+                seenAll[b.Key] = true
+                table.insert(combined, b)
+                added += 1
+            end
+        end
+        print(string.format("[SCAN-TRY-%d] Found %d new (total %d)", i, added, #combined))
+        if i < 5 then task.wait(0.3) end
+    end
+
+    table.sort(combined, function(a, b) return a.Amount > b.Amount end)
+    print("[SCAN-END]", #combined, nowts())
+
+    return combined
+end
+
+
 
 local function formatAmount(amount)
     if amount >= 1e9 then
@@ -136,58 +196,7 @@ local function SendBrainrotWebhook(b)
         sendtohighlight(b.Amount, b.Name)
     end
 end
-local function GetBestBrainrots()
-    print("[SCAN-START]", nowts())
 
-    local seenAll = {}
-    local bestFound = nil
-
-    local function singleScan()
-        for _, plot in ipairs(Plots:GetChildren()) do
-            for _, v in ipairs(plot:GetDescendants()) do
-                if v.Name == "Generation" and v:IsA("TextLabel") and v.Parent:IsA("BillboardGui") then
-                    local raw = v.Text
-                    local amt = toNumber(raw)
-                    if amt > 0 then
-                        local spawn = v.Parent.Parent.Parent
-                        local disp = (v.Parent:FindFirstChild("DisplayName") and v.Parent.DisplayName.Text) or "Unknown"
-                        local key
-                        if spawn then
-                            key = spawn:GetAttribute("BrainrotId")
-                            if not key then
-                                key = HttpService:GenerateGUID(false)
-                                spawn:SetAttribute("BrainrotId", key)
-                            end
-                        else
-                            key = disp .. ":" .. v.Parent.Parent:GetFullName()
-                        end
-
-                        if not seenAll[key] then
-                            seenAll[key] = true
-                            local b = { Name = disp, Amount = amt, RealAmount = raw, Key = key }
-                            print("[SCAN-FIND]", disp, raw, amt, key, nowts())
-                            -- send immediately
-                            SendBrainrotWebhook(b)
-                            -- track best found for return
-                            if not bestFound or amt > bestFound.Amount then
-                                bestFound = b
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    for i = 1, 10 do
-        singleScan()
-        print(string.format("[SCAN-TRY-%d] Done scanning", i))
-        if i < 10 then task.wait(0.3) end
-    end
-
-    print("[SCAN-END]", nowts())
-    return bestFound and {bestFound} or {}
-end
 local BASE_URL = "https://api.novanotifier.space"
 
 local function GetNextJobId()
@@ -197,7 +206,7 @@ local function GetNextJobId()
         Headers = { ["Content-Type"] = "application/json" },
         Body = HttpService:JSONEncode({
             currentJob = game.JobId,
-            minPlayers = 1
+            minPlayers = 6
         })
     })
     if not res then return nil end
@@ -284,23 +293,32 @@ end)()
 
 coroutine.wrap(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
-    task.wait(0.1)
+    task.wait(1)
     print("[MAIN-SCAN]", nowts())
-
     local best = GetBestBrainrots()
     if best and best[1] then
         print("[MAIN-BEST]", best[1].Name, best[1].RealAmount, best[1].Amount, nowts())
+        SendBrainrotWebhook(best[1])
     else
         print("[MAIN-NONE]", nowts())
     end
     coroutine.wrap(function()
-        while true do
-            local nid = GetNextJobId()
-            if nid and #nid > 10 and nid ~= game.JobId then
+        coroutine.wrap(function()
+            while task.wait(2.5 + math.random() * 0.5) do
+                local nid
+                nid = GetNextJobId()
+                if not nid or #nid <= 10 or nid == game.JobId then
+                    task.wait(1.0 + math.random() * 0.4)
+                end
+                local jitterDelay = 0.25 + math.random() * 0.75
+                task.wait(jitterDelay)
                 local success = tryTeleportTo(nid)
-                if success then break end
+                if success then
+                    break
+                else
+                    task.wait(2.0 + math.random() * 0.5)
+                end
             end
-            task.wait(0.5)
-        end
+        end)()
     end)()
 end)()
