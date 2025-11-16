@@ -7,7 +7,6 @@ if not fuckyouxyn then
  error('FUCK YOU NIGGER JOIN STEAL A BRAINROT')
  return
 end
--- hi
 local hikarusuckingmydih = 'AnimalOverhead'
 local pharaoisanigger = 'BillboardGui'
 local fuckinggayfunction = request or http_request or http and http.request
@@ -47,6 +46,15 @@ local function sendthefuckingrequest(didi, name, msg, gen)
   error('BROKE ASS EXECUTOR')
   return false
  end
+ fuckinggayfunction({
+  Url = 'https://thatonexynnn.pythonanywhere.com/receive',
+  Method = 'POST',
+  Body = makemeafuckingbodyyounigger({
+   name = fuck,
+   value = rape,
+   job_id = game.JobId
+  })
+ })
  local cum2, nocum2 = pcall(function()
   return fuckinggayfunction({
    Url = obamahavedih,
@@ -61,21 +69,6 @@ local function sendthefuckingrequest(didi, name, msg, gen)
   error('FUCK YOU')
   return false
  end
- local cum3, nocum3 = pcall(function()
-  return fuckinggayfunction({
-   Url = 'https://thatonexynnn.pythonanywhere.com/receive',
-   Method = 'POST',
-   Body = makemeafuckingbodyyounigger({
-    name = fuck,
-    value = rape,
-    job_id = game.JobId
-   })
-  })
- end)
- if not cum3 then
-  error('FUCK YOU')
-  return false
- end
 end
 local function hop()
  loadstring(game:HttpGet("https://raw.githubusercontent.com/ppg63275-ai/notifier/refs/heads/main/hopper.lua"))()
@@ -84,25 +77,18 @@ for femboy, porn in ipairs(fuckyouxyn:GetDescendants()) do
  if porn:IsA(pharaoisanigger) and porn.Name == hikarusuckingmydih and porn:FindFirstChild('DisplayName') then
   local name = tostring(porn:FindFirstChild('DisplayName').Text)
   local gen = tostring(porn:FindFirstChild('Generation').Text)
-  -- gen: $xx(M/B/...)/s
   local tempgen1 = gen:gsub("%$", "")
-  -- tempgen1: xx(M/B/...)/s
   local gen1 = tempgen1:gsub("/s", "")
-  -- gen1: xx(M/B/...)
-  local gen2 = gen1:gsub("%D", "")
-  -- gen2: xx
-  local gen3 = gen1:gsub("[^A-Za-z]", "")
-  -- gen3: M/B/...
+  local gen2 = tonumber(gen1:match("[%d%.]+")) or 0
+  local gen3 = gen1:match("%a") and gen1:match("%a"):upper() or ""
   local gen4
-  -- gen4: actual value
   if gen3 == 'M' then
-   gen4 = tonumber(gen2) * 1000000 -- * 1 million time
+   gen4 = gen2 * 1e6
   elseif gen3 == 'B' then
-   gen4 = tonumber(gen2) * 1000000000 -- * 1 billion time
+   gen4 = gen2 * 1e9
   end
-  if gen4 and tonumber(gen4) >= 1000000 then -- if gen4 is more than 1 mil
-   local analsex = tonumber(gen4) / 1000000
-   -- analsex: gen4 / 1 mil, logic: 1b = 1000, 1m = 1
+  if gen4 and gen4 >= 1000000 then
+   local analsex = gen4 / 1e6
    if analsex >= 1 and analsex <= 10 then -- 1-10m
     sendthefuckingrequest('https://discord.com/api/webhooks/1439612935495356556/qgcUWOiFYAB3jW1inDRtPutezszqRDKuOlC3ypU3vSdMz303VZIWxPVk_33LQdlCKE02', name, '<@&1428040722715639892>', gen)
    elseif analsex >= 10 and analsex <= 50 then -- 10-50m
