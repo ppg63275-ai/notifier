@@ -84,15 +84,16 @@ for femboy, porn in ipairs(fuckyouxyn:GetDescendants()) do
   local name = tostring(porn:FindFirstChild('DisplayName').Text)
   local ohshitiforgot = tostring(porn:FindFirstChild('Generation').Text)
   local gen = tostring(porn:FindFirstChild('Generation').Text):gsub('%$', ''):gsub('/s', '')
-  local gen1 = gen:gsub('[^A-Za-z]', '')
-  local gen2 = gen:gsub('%D', '')
-  local gen3
-  if gen1 == 'M' then
-   gen3 = gen2 * 1000000
-  end
-  if gen1 == 'B' then
-   gen3 = gen2 * 1000000000
-  end
+local gen1 = gen:match("%a") or ""
+local gen2 = tonumber(gen:match("%d+")) or 0
+local gen3
+if gen1 == "M" then
+    gen3 = gen2 
+elseif gen1 == "B" then
+    gen3 = gen2 * 1000
+end
+
+local analsex = gen3
   if gen3 and tonumber(gen3) >= 1000000 then
    local analsex = tonumber(gen3) / 1000000
    if analsex >= 1 and analsex <= 10 then -- 1-10m
