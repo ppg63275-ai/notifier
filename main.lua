@@ -1,4 +1,3 @@
-
 local L_1_ = game:GetService("HttpService")
 local L_2_ = game:GetService("TeleportService")
 local L_3_ = game:GetService("Players")
