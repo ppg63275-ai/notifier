@@ -26,11 +26,11 @@ local function sendthefuckingrequest(didi, name, msg, gen)
    title = 'Brainrot Notifier | https://discord.gg/novanotifier',
    color = 16450559,
    fields = {
-    {name = 'ðŸ·ï¸Brainrot Name:',value = fuck, inline = true},
-    {name = 'ðŸ’°Money Per Second:',value = rape, inline = true},
-    {name = ':bust_in_silhouette:Players:',value = fahh, inline = true},
-    {name = 'ðŸ“‹Join Script:',value = '``game:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', '..'"'..game.JobId..'"'..', game.Players.LocalPlayer)``', inline = true},
-    {name = 'ðŸ“±Click To Join:',value = '[Click Me :P](https://testing5312.github.io/joiner/?placeId='..game.PlaceId..'&gameInstanceId='..game.JobId..')', inline = true}
+    {name = ':label: Brainrot Name:',value = fuck, inline = true},
+    {name = ':moneybag: Money Per Second:',value = rape, inline = true},
+    {name = ':bust_in_silhouette:Players:',value = fahh..'/8', inline = true},
+    {name = ':clipboard: Join Script:',value = '``game:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', '..'"'..game.JobId..'"'..', game.Players.LocalPlayer)``', inline = true},
+    {name = ':mobile_phone: Click To Join:',value = '[Click Me :P](https://testing5312.github.io/joiner/?placeId='..game.PlaceId..'&gameInstanceId='..game.JobId..')', inline = true}
    },
    footer = {
     text = 'Made by <@208875720733097986>'
