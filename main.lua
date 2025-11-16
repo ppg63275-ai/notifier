@@ -4,7 +4,6 @@ local L_3_ = game:GetService("Players")
 local L_4_ = L_3_.LocalPlayer
 local L_5_ = workspace:WaitForChild("Plots")
 local L_6_ = getgenv and getgenv() or _G
--- e
 local function L_7_func()
 	return os.date("!%Y-%m-%dT%H:%M:%SZ")
 end
@@ -70,7 +69,7 @@ end
 
 	local L_47_, L_48_ = {}, {}
 	local L_49_ = math.random(5, 10)
-	lolocal function L_10_func()
+	local function L_10_func()
     print("[SCAN-START]", L_7_func())
     local function L_46_func()
         local L_52_, L_53_ = {}, {}
@@ -108,7 +107,8 @@ end
             end
         end
         return L_52_
-    endcal L_50_ = os.clock()
+    end
+    local L_50_ = os.clock()
 	local L_51_ = 0
 	while os.clock() - L_50_ < L_49_ do
 		local L_63_ = L_46_func()
