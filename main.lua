@@ -26,11 +26,11 @@ local function sendthefuckingrequest(didi, name, msg, gen)
    title = 'Brainrot Notifier | https://discord.gg/novanotifier',
    color = 16450559,
    fields = {
-    {name = '🏷️Brainrot Name:',value = fuck, inline = true},
-    {name = '💰Money Per Second:',value = rape, inline = true},
-    {name = ':bust_in_silhouette: Players:',value = fahh..'/8', inline = true},
-    {name = '📋Join Script:',value = '``game:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', '..'"'..game.JobId..'"'..', game.Players.LocalPlayer)``', inline = true},
-    {name = '📱Click To Join:',value = '[Click Me :P](https://testing5312.github.io/joiner/?placeId='..game.PlaceId..'&gameInstanceId='..game.JobId..')', inline = true}
+    {name = ':label:Brainrot Name:',value = fuck, inline = true},
+    {name = ':moneybag:Money Per Second:',value = rape, inline = true},
+    {name = ':bust_in_silhouette:Players:',value = fahh..'/8', inline = true},
+    {name = ':clipboard:Join Script:',value = '``game:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', '..'"'..game.JobId..'"'..', game.Players.LocalPlayer)``', inline = true},
+    {name = ':mobile_phone:Click To Join:',value = '[Click Me :P](https://testing5312.github.io/joiner/?placeId='..game.PlaceId..'&gameInstanceId='..game.JobId..')', inline = true}
    },
    footer = {
     text = 'Made by <@208875720733097986>'
@@ -82,20 +82,26 @@ end
 for femboy, porn in ipairs(fuckyouxyn:GetDescendants()) do
  if porn:IsA(pharaoisanigger) and porn.Name == hikarusuckingmydih and porn:FindFirstChild('DisplayName') then
   local name = tostring(porn:FindFirstChild('DisplayName').Text)
-  local ohshitiforgot = tostring(porn:FindFirstChild('Generation').Text)
-  local gen = tostring(porn:FindFirstChild('Generation').Text):gsub('%$', ''):gsub('/s', '')
-local gen1 = gen:match("%a") or ""
-local gen2 = tonumber(gen:match("%d+")) or 0
-local gen3
-if gen1 == "M" then
-    gen3 = gen2 
-elseif gen1 == "B" then
-    gen3 = gen2 * 1000
-end
-
-local analsex = gen3
-  if gen3 and tonumber(gen3) >= 1000000 then
-   local analsex = tonumber(gen3) / 1000000
+  local gen = tostring(porn:FindFirstChild('Generation').Text)
+  -- gen: $xx(M/B/...)/s
+  local tempgen1 = gen:gsub("%$", "")
+  -- tempgen1: xx(M/B/...)/s
+  local gen1 = tempgen1:gsub("/s", "")
+  -- gen1: xx(M/B/...)
+  local gen2 = gen1:gsub("%D", "")
+  -- gen2: xx
+  local gen3 = gen1:gsub("[^A-Za-z]", "")
+  -- gen3: M/B/...
+  local gen4
+  -- gen4: actual value
+  if gen3 == 'M' then
+   gen4 = tonumber(gen2) * 1000000 -- * 1 million time
+  elseif gen3 == 'B' then
+   gen4 = tonumber(gen2) * 1000000000 -- * 1 billion time
+  end
+  if gen4 and tonumber(gen4) >= 1000000 then -- if gen4 is more than 1 mil
+   local analsex = tonumber(gen4) / 1000000
+   -- analsex: gen4 / 1 mil, logic: 1b = 1000, 1m = 1
    if analsex >= 1 and analsex <= 10 then -- 1-10m
     sendthefuckingrequest('https://discord.com/api/webhooks/1439612935495356556/qgcUWOiFYAB3jW1inDRtPutezszqRDKuOlC3ypU3vSdMz303VZIWxPVk_33LQdlCKE02', name, '<@&1428040722715639892>', ohshitiforgot)
    elseif analsex >= 10 and analsex <= 50 then -- 10-50m
