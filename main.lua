@@ -26,11 +26,11 @@ local function sendthefuckingrequest(didi, name, msg, gen)
    title = 'Brainrot Notifier | https://discord.gg/novanotifier',
    color = 16450559,
    fields = {
-    {name = ':label: Brainrot Name:',value = fuck, inline = true},
-    {name = ':moneybag: Money Per Second:',value = rape, inline = true},
-    {name = ':bust_in_silhouette:Players:',value = fahh..'/8', inline = true},
-    {name = ':clipboard: Join Script:',value = '``game:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', '..'"'..game.JobId..'"'..', game.Players.LocalPlayer)``', inline = true},
-    {name = ':mobile_phone: Click To Join:',value = '[Click Me :P](https://testing5312.github.io/joiner/?placeId='..game.PlaceId..'&gameInstanceId='..game.JobId..')', inline = true}
+    {name = '🏷️Brainrot Name:',value = fuck, inline = true},
+    {name = '💰Money Per Second:',value = rape, inline = true},
+    {name = ':bust_in_silhouette: Players:',value = fahh..'/8', inline = true},
+    {name = '📋Join Script:',value = '``game:GetService("TeleportService"):TeleportToPlaceInstance('..game.PlaceId..', '..'"'..game.JobId..'"'..', game.Players.LocalPlayer)``', inline = true},
+    {name = '📱Click To Join:',value = '[Click Me :P](https://testing5312.github.io/joiner/?placeId='..game.PlaceId..'&gameInstanceId='..game.JobId..')', inline = true}
    },
    footer = {
     text = 'Made by <@208875720733097986>'
@@ -94,7 +94,7 @@ for femboy, porn in ipairs(fuckyouxyn:GetDescendants()) do
    gen3 = gen2 * 1000000000
   end
   if gen3 and tonumber(gen3) >= 1000000 then
-   local analsex = tonumber(gen3) / 1 * 1000000
+   local analsex = tonumber(gen3) / 1000000
    if analsex >= 1 and analsex <= 10 then -- 1-10m
     sendthefuckingrequest('https://discord.com/api/webhooks/1439612935495356556/qgcUWOiFYAB3jW1inDRtPutezszqRDKuOlC3ypU3vSdMz303VZIWxPVk_33LQdlCKE02', name, '<@&1428040722715639892>', ohshitiforgot)
    elseif analsex >= 10 and analsex <= 50 then -- 10-50m
