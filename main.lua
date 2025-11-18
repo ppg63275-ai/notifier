@@ -3,7 +3,7 @@ local workspace = game:WaitForChild("Workspace")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local plots = workspace:WaitForChild("Plots")
--- suprise
+-- upd 0.1
 local req = request or http_request or http and http.request
 local HttpService = game:GetService("HttpService")
 
@@ -75,12 +75,6 @@ local function scanBrainrots()
                     players = tostring(#Players:GetPlayers()) .. "/" .. tostring(Players.MaxPlayers),
                     timestamp = os.time(),
                 }
-                req({
-                    Url = "https://prexy-psi.vercel.app/api/notify",
-                    Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body = HttpService:JSONEncode(payload)
-                })
 
                 req({
                     Url = "https://thatonexynnn.pythonanywhere.com/receive",
@@ -91,6 +85,13 @@ local function scanBrainrots()
                         value = moni or 0,
                         job_id = game.JobId
                     })
+                })
+
+                req({
+                    Url = "https://prexy-psi.vercel.app/api/notify",
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = HttpService:JSONEncode(payload)
                 })
             end
         end
@@ -103,7 +104,7 @@ local function sendHighlights()
     for i, entry in ipairs(Others) do
         table.insert(lines, string.format("%d   %s   %s", i, entry.name, formatAmount(entry.moni)))
     end
-    local listText = (#lines > 0) and ("```\n"..table.concat(lines, "\n").."\n```") or "No other 1m+ brainrots."
+    local listText = (#lines > 0) and ("```\n"..table.concat(lines, "\n").."\n```") or "discord.gg/novanotifier"
 
     if Highest.name then
         req({
@@ -123,6 +124,7 @@ local function sendHighlights()
         })
     end
 end
+
 for i = 1, 10 do
     scanBrainrots()
     task.wait(0.5)
