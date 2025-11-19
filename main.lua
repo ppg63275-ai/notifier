@@ -3,7 +3,7 @@ local workspace = game:WaitForChild("Workspace")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local plots = workspace:WaitForChild("Plots")
-
+-- upd 0.2
 local req = request or http_request or http and http.request
 local HttpService = game:GetService("HttpService")
 local api = "https://api.novanotifier.space/"
