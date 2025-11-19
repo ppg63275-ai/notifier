@@ -3,16 +3,107 @@ local workspace = game:WaitForChild("Workspace")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local plots = workspace:WaitForChild("Plots")
--- upd 0.1
+
 local req = request or http_request or http and http.request
 local HttpService = game:GetService("HttpService")
-
+local api = "https://api.novanotifier.space/"
 local brainrots = {}
 local guidMap = {}
 local Results = { set = {}, list = {} }
 
 local Highest = { name = nil, moni = 0 }
 local Others = {}
+function nowts()
+    return os.date("!%Y-%m-%dT%H:%M:%SZ")
+end
+local TeleportService = game:GetService("TeleportService")
+local tpFailed = false
+
+TeleportService.TeleportInitFailed:Connect(function(_, result)
+    tpFailed = true
+end)
+
+function next()
+    local response = req({
+        Url = api.."next",
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode({
+            currentJob = tostring(game.JobId),
+            minPlayers = 1
+        })
+    })
+    if not response then
+        return nil 
+    end
+
+    local success, data = pcall(function()
+        return HttpService:JSONDecode(response.Body)
+    end)
+
+    if success and data and data.job then
+        return tostring(data.job)
+    end
+    return nil
+end
+
+function release()
+    local response = req({
+        Url = api.."release",
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode({
+            jobId = tostring(game.JobId)
+        })
+    })
+end
+
+local function tryTeleportTo(jobId)
+    tpFailed = false
+    local ok = pcall(function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId)
+    end)
+
+    if not ok then
+        return false
+    end
+
+    local start = os.clock()
+    while os.clock() - start < 5 do
+        if tpFailed then
+            return false
+        end
+        task.wait(0.1)
+    end
+    return true
+end
+
+
+function hop()
+    local id = next()
+    if not id then 
+        return 
+    end
+
+    coroutine.wrap(function()
+        while true do
+
+            if not id or #id <= 10 or id == game.JobId then
+                task.wait(1 + math.random() * 0.2)
+                id = next()
+                continue
+            end
+
+            local d = 2.3 + math.random() * 0.3
+            task.wait(d)
+
+            local success = tryTeleportTo(id)
+            if success then
+                break
+            end
+        end
+    end)()
+end
 
 local function parseGeneration(str)
     str = string.gsub(str, "[%$,/s,]", "")
@@ -64,18 +155,6 @@ local function scanBrainrots()
                     Results.set[sig] = true
                     table.insert(Results.list, { name = name, moni = moni })
                 end
-
-                local payload = {
-                    id = sig,
-                    name = name,
-                    amount = moni,
-                    realAmount = rawGen,
-                    jobId = game.JobId,
-                    placeId = game.PlaceId,
-                    players = tostring(#Players:GetPlayers()) .. "/" .. tostring(Players.MaxPlayers),
-                    timestamp = os.time(),
-                }
-
                 req({
                     Url = "https://thatonexynnn.pythonanywhere.com/receive",
                     Method = "POST",
@@ -91,7 +170,16 @@ local function scanBrainrots()
                     Url = "https://prexy-psi.vercel.app/api/notify",
                     Method = "POST",
                     Headers = { ["Content-Type"] = "application/json" },
-                    Body = HttpService:JSONEncode(payload)
+                    Body = HttpService:JSONEncode({
+                        id = sig,
+                        name = name,
+                        amount = moni,
+                        realAmount = rawGen,
+                        jobId = game.JobId,
+                        placeId = game.PlaceId,
+                        players = tostring(#Players:GetPlayers()) .. "/" .. tostring(Players.MaxPlayers),
+                        timestamp = os.time(),
+                    })
                 })
             end
         end
@@ -129,7 +217,6 @@ for i = 1, 10 do
     scanBrainrots()
     task.wait(0.5)
 end
-
 sendHighlights()
 task.wait(0.1)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ppg63275-ai/notifier/refs/heads/main/hopper.lua"))()
+hop()
