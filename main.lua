@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
--- upd 0.3
+-- upd 0.31
 local workspace = game:WaitForChild("Workspace")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -192,31 +192,41 @@ end
 
 local function sendAllBrainrots()
     for sig, data in pairs(BrainrotQueue) do
-        for _, url in ipairs(BrainrotEndpoints) do
-            req({
-                Url = url,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode({
-                    name = data.name,
-                    value = data.moni,
-                    raw = data.rawGen,
-                    sig = data.sig,
-                    job_id = game.JobId,
-                    placeId = game.PlaceId,
-                    timestamp = os.time()
-                })
+        req({
+            Url = "https://thatonexynnn.pythonanywhere.com/receive",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode({
+                name = data.name,
+                value = data.moni,
+                raw = data.rawGen,
+                sig = data.sig,
+                job_id = game.JobId,
+                placeId = game.PlaceId,
+                timestamp = os.time()
             })
-        end
+        })
+
+        task.wait(0.05)
+        req({
+            Url = "https://prexy-psi.vercel.app/api/notify",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode({
+                name = data.name,
+                value = data.moni,
+                raw = data.rawGen,
+                id = data.sig,
+                job_id = game.JobId,
+                placeId = game.PlaceId,
+                timestamp = os.time()
+            })
+        })
+
         task.wait(0.15)
     end
 end
-
-for i = 1, 10 do
-    scanBrainrots()
-    task.wait(0.5)
-end
-
+scanBrainrots()
 sendAllBrainrots()
 sendHighlights()
 CURRENT_TS = os.time()
