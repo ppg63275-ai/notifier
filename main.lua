@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
--- upd 0.31
+-- upd 0.32
 local workspace = game:WaitForChild("Workspace")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -213,13 +213,13 @@ local function sendAllBrainrots()
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = HttpService:JSONEncode({
-                name = data.name,
-                value = data.moni,
-                raw = data.rawGen,
                 id = data.sig,
-                job_id = game.JobId,
+                amount = data.moni,
+                realAmount = data.rawGen,
+                name = data.name,
+                players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers),
                 placeId = game.PlaceId,
-                timestamp = os.time()
+                jobId = game.JobId
             })
         })
 
